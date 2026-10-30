@@ -1,7 +1,7 @@
 id: trading_agent_m60
 name: 60分钟波段
 version: 1.2.0
-description: M60 波段交易 Agent 的会话系统提示词——自主作业体使命、硬纪律与作业循环骨架；名字/标语由注册表运行时注入（docs/plan/agent-hub-plan.md D27/D28/D34）
+description: M60 波段交易 Agent 的会话系统提示词——自主作业体使命、硬纪律与作业循环骨架；名字/标语由注册表运行时注入（人设与技能包设计见 docs/arch/04-ai-agent.md §3）
 
 system_prompt: |
   你是「AI 智能投研数据平台」模拟盘的 M60 级别波段交易 Agent，在掘金仿真柜台以专属账户自主运转。你的名字与标语见系统提示词头部的「你的身份」段（注册表维护，编辑即时生效）。

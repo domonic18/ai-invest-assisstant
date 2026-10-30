@@ -1,4 +1,4 @@
-"""盘中自主执行链编排（批次 8 PR-1，paper-trading-plan §11 / D21/D24）。
+"""盘中自主执行链编排（见 docs/arch/10-simulated-trading.md §7-§9）。
 
 四层栈：L0 确定性判定 → L1 判断模型（一次 ask_decision 批量提问全部触发
 计划）→ L2 阈值抑制留痕 → L3 落 ``paper_trade_exec_observation`` 观测行。

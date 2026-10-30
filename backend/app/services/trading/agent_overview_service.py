@@ -1,4 +1,4 @@
-"""交易 Agent 总览聚合服务（Agent Hub 总览页数据源，agent-hub-plan.md D24）。
+"""交易 Agent 总览聚合服务（Agent 总览页数据源）。
 
 每 Agent 聚合：注册行 profile + 模型显示名（join llm_config）+ 当日计划/
 自选/订单计数 + 近期活动（计划生成/触发、复盘生成）+ 下次定时任务时刻

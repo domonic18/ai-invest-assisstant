@@ -1,4 +1,4 @@
-"""盘中执行 L1 判断题面（批次 8，paper-trading-plan §11.6）。
+"""盘中执行 L1 判断题面（见 docs/arch/10-simulated-trading.md §9）。
 
 题面是代码契约不是 prompt 资产：不走 YAML prompt 体系，模块级常量直构
 Judge 题型（schema 校验兜底形状）。文案改动等价于换了评测基准——影子期

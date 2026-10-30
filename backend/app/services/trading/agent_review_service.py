@@ -1,11 +1,11 @@
 """交易 Agent 盘后分层复盘服务（六档周期生成；窗口模型见 agent_review_periods）。
 
 复盘对象为指定 Agent 的专属账户（本地三表按 ``resolve_agent_account()`` 过滤）；
-结果按 (skill_id, input_hash=Agent+账户+周期+窗口) 缓存在 ``ai_analysis_result``
+结果按 (skill_id, input_hash=契约版本+Agent+账户+周期+窗口) 缓存在 ``ai_analysis_result``
 （skill_id='paper-trade-review'），生成路径 redis 锁防重入。LLM 单轮结构化输出
 字段全 required（禁默认值铁律），一次输出三层 verdict + 盘面语境 + 方法论验证 +
-experiences——分层是批次 9 记忆精准反哺的前提（docs/plan/paper-trading-plan.md
-§9）；持久化读模型 ``PaperTradeReviewRecord`` 附带 agent_key（落库时注入，读取按
+experiences——分层是记忆精准反哺的前提（见 docs/arch/10-simulated-trading.md
+§10）；持久化读模型 ``PaperTradeReviewRecord`` 附带 agent_key（落库时注入，读取按
 Agent 过滤）。复盘契约 prompt 装载 per-agent 技能包
 ``skills/trading-<agent_key>/review_prompt.yaml``（D34 skill 化，配置页可见），
 未建目录回退共享 ``trading-default``（镜像 plan_skill_id 模式）。
@@ -36,6 +36,7 @@ from app.services.review.market_review_service import ReviewInputDataNotReadyErr
 from app.services.trading import agent_memory_service, agent_methodology
 from app.services.trading.agent_review_content import (
     NO_TARGET_REASON,
+    REVIEW_CONTRACT_VERSION,
     PaperTradeReviewContent,
     PaperTradeReviewDraft,
     PaperTradeReviewRecord,
@@ -197,8 +198,12 @@ async def ensure_window_ready(
 
 
 def _input_hash(agent_key: str, account_id: int, period: str, start: date, end: date) -> str:
+    """缓存键：技能 + 契约版本 + Agent + 账户 + 周期 + 窗口。
+
+    契约版本进键，持久化契约升级后旧行失配重算，不会把旧行补空值当命中返回。
+    """
     raw = (
-        f"{REVIEW_SKILL_ID}:{agent_key}:{account_id}:"
+        f"{REVIEW_SKILL_ID}:v{REVIEW_CONTRACT_VERSION}:{agent_key}:{account_id}:"
         f"{period}:{start.isoformat()}:{end.isoformat()}"
     )
     return hashlib.sha256(raw.encode()).hexdigest()

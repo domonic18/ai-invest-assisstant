@@ -7,7 +7,7 @@
 输出（契约见 ``agent_plan_schemas``）→ 幻觉/人工移出代码后置校验 → 缓存行
 + 两表 upsert（``agent_plan_persist``）。按 (skill_id, input_hash=Agent+
 账户+交易日) 缓存 ``ai_analysis_result``，redis 锁防重入；多 Agent 各自
-独立生成（agent-hub-plan.md D23）。计划 prompt 装载 per-agent 技能包
+独立生成（见 docs/arch/10-simulated-trading.md §10）。计划 prompt 装载 per-agent 技能包
 ``skills/trading-<agent_key>/prompt.yaml``（D27），未建目录回退共享
 ``trading-default``（D28 扩展性：新 Agent 免建技能目录）；user_prompt 头部
 注入注册表人设段（D28 全链路）。

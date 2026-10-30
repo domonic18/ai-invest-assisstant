@@ -1,4 +1,4 @@
-"""交易 Agent 注册表服务（``trading_agent``，agent-hub-plan.md D21/D29）。
+"""交易 Agent 注册表服务（``trading_agent``，见 docs/arch/10-simulated-trading.md §3）。
 
 身份/介绍/模型绑定（空 = 平台默认 chat 模型）、方法论知识源绑定（空 = 未启用
 方法论基座注入）、风控阈值（批次 8 盘中执行消费）、intraday_exec_mode 执行三态

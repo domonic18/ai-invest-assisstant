@@ -151,7 +151,7 @@
 | TLS 指纹伪装 | 东财系接口（概念成分、研报 PDF）与 CME 官网（Akamai，httpx 直接超时）用 `curl_cffi` Chrome 指纹，httpx 会被识别返回 JS 反爬页 |
 | 镜像域名 | `push2delay` 承接东财批量拉取，规避 `push2` 主机限流 |
 | 请求限流 + 退避 | `collector.core.http_client` 统一超时/重试/间隔控制 |
-| 固定出口 IP | 采集 worker 永久驻留轻量服务器，固定出口 IP 对东财 WAF 更友好（SCF 共享出口池风险高） |
+| 固定出口 IP | 采集 worker 永久驻留轻量服务器，固定出口 IP 对东财 WAF 更友好（共享出口池易被按主机封禁） |
 | 随机 User-Agent | http_client 默认注入 |
 | 抖音签名门禁 | `douyin-signer` sidecar（chromium warm 页 SDK 真签，第三 CI 镜像）；不可用时回退本地 a_bogus（见 2.10） |
 

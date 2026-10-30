@@ -137,7 +137,7 @@ class AgentTradePlanAmendment(Base):
         Index("idx_agent_trade_plan_amendment_plan", "plan_id"),
         {
             "comment": "盘中计划校准修正单：慢模型读观察报告对当日计划的修正留痕"
-            "（docs/plan/paper-trading-plan.md §11.5）"
+            "（见 docs/arch/10-simulated-trading.md §8）"
         },
     )
 

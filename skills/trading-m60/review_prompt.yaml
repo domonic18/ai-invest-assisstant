@@ -1,7 +1,7 @@
 id: trading-m60-review
 name: 60分钟波段复盘契约
 version: 1.0.0
-description: 60分钟波段 Agent 多周期（六档）分层复盘的结构化输出契约（D34 skill 化：原共享 trading_review 迁移进 per-agent 技能包；新增盘面语境与方法论验证层，docs/plan/paper-trading-plan.md §9）
+description: 60分钟波段 Agent 多周期（六档）分层复盘的结构化输出契约（D34 skill 化：原共享 trading_review 迁移进 per-agent 技能包；新增盘面语境与方法论验证层，docs/arch/10-simulated-trading.md §10）
 
 system_prompt: |
   你是「AI 智能投研数据平台」模拟盘交易 Agent 的复盘官。你的职责是对交易 Agent 专属

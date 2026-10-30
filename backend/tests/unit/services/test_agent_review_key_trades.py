@@ -141,16 +141,54 @@ class TestSelectKeyTrades:
         assert selection.tags["Y"] == (TAG_OUT_OF_ZONE, TAG_REJECTED)
         assert selection.tags["R1"] == (TAG_REJECTED,)
 
-    def test_caps_total_and_reports_candidates(self) -> None:
+    def test_caps_each_category_and_reports_candidates(self) -> None:
         executions = [
             _execution(f"E{index}", stock_code=f"60000{index}", price="99")
             for index in range(KEY_TRADE_MAX + 5)
         ]
         selection = select_key_trades(executions=executions, plans=[], realized=[])
 
-        assert len(selection.cl_ord_ids) == KEY_TRADE_MAX
+        # 计划外单逐类限量，候选数仍报全量
+        assert len(selection.cl_ord_ids) == KEY_TRADE_TOP_N
         assert selection.total_candidates == len(executions)
         assert set(selection.tags) == set(selection.cl_ord_ids)
+
+    def test_rejected_survives_deviation_overflow(self) -> None:
+        """计划外单溢出时拒单仍在结果内（需求 §4.2：废单必点评）。"""
+        executions = [
+            _execution(f"E{index}", stock_code=f"60000{index}", price="99")
+            for index in range(KEY_TRADE_MAX + 5)
+        ]
+        selection = select_key_trades(
+            executions=executions,
+            plans=[],
+            realized=[],
+            rejected_cl_ord_ids=["R1", "R2"],
+        )
+
+        assert "R1" in selection.cl_ord_ids
+        assert "R2" in selection.cl_ord_ids
+        assert selection.tags["R1"] == (TAG_REJECTED,)
+        assert len(selection.cl_ord_ids) <= KEY_TRADE_MAX
+
+    def test_all_categories_fit_within_total_cap(self) -> None:
+        """五类各自满载时总数不超过 KEY_TRADE_MAX（不会挤掉整类）。"""
+        realized = [_trade(f"W{i}", "100") for i in range(KEY_TRADE_TOP_N * 2)]
+        realized += [_trade(f"L{i}", "-100") for i in range(KEY_TRADE_TOP_N * 2)]
+        executions = [
+            _execution(f"OFF{i}", stock_code=f"00000{i}") for i in range(KEY_TRADE_TOP_N * 2)
+        ] + [
+            _execution(f"ZONE{i}", price="99") for i in range(KEY_TRADE_TOP_N * 2)
+        ]
+        selection = select_key_trades(
+            executions=executions,
+            plans=[_plan()],
+            realized=realized,
+            rejected_cl_ord_ids=[f"R{i}" for i in range(KEY_TRADE_TOP_N * 2)],
+        )
+
+        assert len(selection.cl_ord_ids) == KEY_TRADE_MAX
+        assert any(TAG_REJECTED in tags for tags in selection.tags.values())
 
     def test_to_wire_is_json_ready(self) -> None:
         selection = KeyTradeSelection(

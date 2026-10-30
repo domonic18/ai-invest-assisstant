@@ -2,9 +2,9 @@
 
 token Fernet 加密落库（utils/crypto 同源，proxy_configs 先例）；
 counter_account_id 全平台唯一（防 token 共享/多头配置）；每 Agent 至多绑定
-一个专属账户（部分唯一索引兜底并发，agent-hub-plan.md D22）；每用户账户数
+一个专属账户（部分唯一索引兜底并发）；每用户账户数
 上限防滥用。账户删除仅在无交易数据时允许（数据保留以供复盘）。
-查询恒按账户过滤，NULL 账户维度的存量行不可见（docs/plan/paper-trading-plan.md §6）。
+查询恒按账户过滤，NULL 账户维度的存量行不可见（见 docs/arch/10-simulated-trading.md §3-§5）。
 """
 
 from typing import Protocol

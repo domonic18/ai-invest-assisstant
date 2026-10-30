@@ -1,4 +1,4 @@
-"""交易 Agent 注册表服务测试（agent-hub-plan.md D21/D28/D29）。
+"""交易 Agent 注册表服务测试（多 Agent 注册表）。
 
 覆盖：agent_key 读取 404 / active 门禁 / wire 视图映射 / 局部更新 /
 LLM 绑定校验（404/停用/非 chat）/ 方法论知识源校验 / 任意状态可写 +

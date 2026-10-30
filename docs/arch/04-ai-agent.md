@@ -72,7 +72,7 @@
 | 社媒大 V 情绪判断 | 采集任务后自动；助手对话调用 | `skills/social-sentiment/prompt.yaml` | LLM 对抖音作品逐条情绪标注（prompt_only），见 [08](./08-social-sentiment.md) |
 | AI 智能画线 | 个股 K 线页「AI 画线」按钮 → AI 助手侧边栏 | `skills/kline-smart-drawing/` | ask_user 问题卡澄清意图 → 结构化画线 → 人工编辑采纳，见 05 号文档 §5.3 |
 | 自选股截图识别 | `POST /api/v1/users/watchlist/recognize-screenshot` | `skills/watchlist-screenshot-recognition/prompt.yaml` | 视觉模型识别截图中的股票列表，与 `stock_basic` 交叉校验后返回 |
-| 交易 Agent 作业（计划 / 复盘 / 盘中校准） | 定时任务（计划 19:30 / 复盘 19:00，heavy 队列）；盘中 10:20/13:20 校准；`agent-intraday-exec` 驻留进程逐 tick 执行 | `skills/trading-<agent_key>/`（SKILL.md + REVIEW.md + calibration_prompt.yaml，`trading-default` 共享 fallback） | 多 Agent 注册表驱动（`trading_agent`，agent_key 参数化，会话人设注入）；方法论基座 KB 直读双层注入；执行轨迹 agent_run/agent_run_step 全程留痕；盘中执行影子模式先行（off/shadow/active），tick 行情状态注入当日分钟线序列（tencent `stock-minute` 盘中采集，判断模型据题面分时形态作答），详见 paper-trading-plan §10-§11 |
+| 交易 Agent 作业（计划 / 复盘 / 盘中校准） | 定时任务（计划 19:30 / 复盘 19:00，heavy 队列）；盘中 10:20/13:20 校准；`agent-intraday-exec` 驻留进程逐 tick 执行 | `skills/trading-<agent_key>/`（SKILL.md + REVIEW.md + calibration_prompt.yaml，`trading-default` 共享 fallback） | 多 Agent 注册表驱动（`trading_agent`，agent_key 参数化，会话人设注入）；方法论基座 KB 直读双层注入；执行轨迹 agent_run/agent_run_step 全程留痕；复盘六档周期（日/周/月自动，季/半年/年按需）统一框架 + 专属板块，支持本期/上期/自定义区间与跨窗等长交易日对比，确定性指标由快照复算；盘中执行影子模式先行（off/shadow/active），tick 行情状态注入当日分钟线序列（tencent `stock-minute` 盘中采集，判断模型据题面分时形态作答），详见 [10-simulated-trading.md](./10-simulated-trading.md) §7-§10 |
 
 > `hotspot-detection`、`chain-breakthrough`、`financial-health-check` 为 `doc_only` 方法论技能（仅 `skills/*/SKILL.md` 业务描述），实现随页面迭代补齐。
 
@@ -312,7 +312,18 @@ agent = create_deep_agent(
 result = await skill_runtime.invoke_structured(agent, user_prompt, ChainAnalysisResult)
 ```
 
-### 6.3 外部 MCP Server 接入助手
+### 6.3 交易 Agent 专用工具集
+
+交易 Agent 对话路径的工具真相源是 `agent/tools/trading/build_trading_tools(agent_key)`（定时选股/计划直调服务层，不经工具）。工具按纪律分四组：
+
+- **账户与交易**：账户查询、下单、撤单、计划制定/列取/取消、选股、复盘读取/按需生成；写操作前经 `ask_user` 确认
+- **行情查询**：现价快照、日 K、预计算技术面、情绪面、个股资金流、交易日历（下单前询价与数据滞后判定依据，复用助手同级只读工具）
+- **数据自愈**：`collect_market_data(trade_date, symbols)` 与 `collect_financial_data(stock_codes)` 异步派发补采，工具描述内建「判定滞后 → 补采 → 等待入库 → 复查询验证」工作流；财报 PDF 查询/下载/摘要工具同组
+- **画线与视觉自检**：`get_kline_drawings` 读双图层、`persist_ai_kline_drawings` 写入、`render_kline_drawings` 服务端 pillow 渲染 PNG（date→x / price→y 与前端 `coordinates.ts` 同构）。图像消费双路径：绑定模型支持视觉时以多模态 ToolMessage 直看；否则降级 `run_structured(vision=True)` 走系统视觉槽位返回结构化结论。PNG 同时上传对象存储返回 URL，会话内 Markdown 图片内联可点击放大
+
+实例缓存指纹含 `TOOLS_VERSION`（`agent/tools/trading/__init__.py`），增删工具须同提交 bump，否则旧实例不重建。
+
+### 6.4 外部 MCP Server 接入助手
 
 外部 MCP 服务经后台管理（`/admin/mcp-servers` → `api/v1/admin/mcp_configs.py` + `services/admin/mcp_config_service.py`）维护配置，启用后工具注入对话助手：
 
@@ -410,7 +421,7 @@ internal AI 生成任务由采集调度自动触发（`specs/ai.py` 共 9 个，
 | 组成 | 实现 |
 |------|------|
 | 运行时组装 | `agent/runtime/assistant_agent.py`：`create_deep_agent(model, tools, system_prompt, skills, subagents, checkpointer)` |
-| 工具层 | `app/agent/tools.build_assistant_tools()`：LangChain `@tool` 包装读服务（行情/K线/财务/新闻/板块资金/大盘/竞价 + 问财选股 `screen_stocks` 等只读工具）+ 持久化工具（复盘/归因/产业链/个股分析 + 画线读写 `get_kline_drawings` / `persist_ai_kline_drawings`）+ 财报工具 + 行情补采 + HITL 问题卡 `ask_user` + 知识库检索 `search_knowledge_base`（会话 `use_kb` 开关注入、缺省开，纳入 agent 指纹缓存维度）；`build_mcp_tools()` 经 `langchain-mcp-adapters` 注入后台已启用的外部 MCP 服务工具（见 6.3） |
+| 工具层 | `app/agent/tools.build_assistant_tools()`：LangChain `@tool` 包装读服务（行情/K线/财务/新闻/板块资金/大盘/竞价 + 问财选股 `screen_stocks` 等只读工具）+ 持久化工具（复盘/归因/产业链/个股分析 + 画线读写 `get_kline_drawings` / `persist_ai_kline_drawings`）+ 财报工具 + 行情补采 + HITL 问题卡 `ask_user` + 知识库检索 `search_knowledge_base`（会话 `use_kb` 开关注入、缺省开，纳入 agent 指纹缓存维度）；`build_mcp_tools()` 经 `langchain-mcp-adapters` 注入后台已启用的外部 MCP 服务工具（见 6.4） |
 | Skill 渐进披露 | 根目录 `skills/*/SKILL.md` 标准 frontmatter 格式（`name`/`description`），启动只加载元数据、按需读全文 |
 | MCP 双向 | 平台经 fastmcp 对外暴露数据工具（`/api/v1/mcp`）；助手经 `langchain-mcp-adapters` 接入外部 MCP Server（后台 `/admin/mcp-servers` 维护配置与连接测试，启用即注入） |
 | 会话持久化 | `assistant_session` 表（会话列表/归属/标题）+ LangGraph `AsyncPostgresSaver`（消息轨迹与 agent 线程状态，`thread_id` 兼作会话 id） |

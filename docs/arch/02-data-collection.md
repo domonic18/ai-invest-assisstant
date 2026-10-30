@@ -27,7 +27,7 @@
 │  ├── runner.py       统一执行器 run_task（collector_log 唯一写入点）         │
 │  ├── stream.py       驻留采集进程（财联社电报 10 秒增量轮询）                │
 │  ├── cli.py          CLI 入口（本地调试 / 应急）                             │
-│  └── scf_handler.py  SCF 事件解析（云函数承载时的适配层）                    │
+│  └── scf_handler.py  云函数事件解析（保留适配层，当前不部署）                │
 │                                                                            │
 │  core/    base(PostgresCollector/共享 engine) / http_client / parsing /     │
 │           pipelines / exporters / calendar / logging / config               │
@@ -42,7 +42,7 @@
 
 ```
 ┌────────────────────┐ ┌────────────────┐ ┌──────────────┐ ┌─────────────┐
-│ celery-beat         │ │ 管理后台 API    │ │ CLI/本地脚本 │ │ SCF 事件     │
+│ celery-beat         │ │ 管理后台 API    │ │ CLI/本地脚本 │ │ 云函数(保留) │
 │ collector_task 表   │ │ dispatcher 投递│ │ runtime.cli  │ │ scf_handler │
 └─────────┬──────────┘ └───────┬────────┘ └──────┬───────┘ └──────┬──────┘
           │ 按 schedule 投递    │                 │ 直接调用        │
@@ -55,7 +55,7 @@
                   ▼
    ┌────────────────────────────────┐
    │ runtime.runner.run_task        │ 生成 task_run_id，回写 collector_log，
-   │ （worker/scheduler/CLI/SCF 共享）│ 失败记录 traceback
+   │ （各入口统一共享）               │ 失败记录 traceback
    └──────────────┬─────────────────┘
                   ▼
    ┌────────────────────────────────┐
@@ -68,7 +68,7 @@
 - `COLLECTOR_MODE=beat` → celery-beat（挂 `CollectorDatabaseScheduler`）
 - `COLLECTOR_MODE=worker` + `COLLECTOR_QUEUE=<queue>` → 队列 worker
 - `COLLECTOR_MODE=stream` → 准实时驻留采集进程（财联社电报 10 秒增量轮询，自有循环、不走 Celery 队列，不注册 TASK_SPECS）
-- 设置 `COLLECT_TASK=<task>` → 跑一次性任务后退出（CLI / SCF 模式）
+- 设置 `COLLECT_TASK=<task>` → 跑一次性任务后退出（CLI 一次性模式）
 
 ### 2.2 调度矩阵（节奏参考）
 

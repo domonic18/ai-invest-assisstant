@@ -194,9 +194,12 @@ API_KEY_SCOPES: tuple[str, ...] = (
     API_KEY_SCOPE_REPORTS_COLLECT,
 )
 
-# 个人设置自助签发的默认 scope：只授已上线的只读 MCP 工具，P1 能力上线后再扩
+# 个人设置自助签发的默认 scope：只授已上线的 MCP 工具（含 P1 自选股读写），
+# 财报与后续能力上线后再扩
 API_KEY_SELF_SERVICE_SCOPES: tuple[str, ...] = (
     API_KEY_SCOPE_MARKET_READ,
     API_KEY_SCOPE_TRADING_READ,
     API_KEY_SCOPE_KB_READ,
+    API_KEY_SCOPE_WATCHLIST_READ,
+    API_KEY_SCOPE_WATCHLIST_WRITE,
 )

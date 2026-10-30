@@ -104,6 +104,13 @@ function draftToWindow(
   }
 }
 
+/** 一次对比结果的快照：表头与数据必须同源，避免草稿改动后表头与数值错位。 */
+interface CompareSnapshot {
+  data: ApiTradingAgentReviewCompareResponse
+  windowA: TradingAgentReviewWindow
+  windowB: TradingAgentReviewCompareWindow
+}
+
 interface ReviewCompareModalProps {
   open: boolean
   onClose: () => void
@@ -123,7 +130,7 @@ export function ReviewCompareModal({
   const [period, setPeriod] = useState<TradingReviewPeriod>(defaultPeriod)
   const [scope, setScope] = useState<TradingReviewScope>('previous')
   const [tradeDate, setTradeDate] = useState<Dayjs | null>(null)
-  const [result, setResult] = useState<ApiTradingAgentReviewCompareResponse | null>(null)
+  const [snapshot, setSnapshot] = useState<CompareSnapshot | null>(null)
   const compare = useCompareTradingAgentReviews(agentKey)
 
   useEffect(() => {
@@ -131,30 +138,38 @@ export function ReviewCompareModal({
     setPeriod(baseWindow.period ?? 'month')
     setScope('previous')
     setTradeDate(null)
-    setResult(null)
+    setSnapshot(null)
   }, [open, baseWindow.period])
 
   const windowB = useMemo(() => draftToWindow(period, scope, tradeDate), [period, scope, tradeDate])
 
   const runCompare = () => {
+    // 请求窗口与结果一起快照：草稿后续改动不影响已渲染的表头
+    const requestA = baseWindow
+    const requestB = windowB
     compare.mutate(
-      { windowA: baseWindow, windowB },
-      { onSuccess: (data) => setResult(data) },
+      { windowA: requestA, windowB: requestB },
+      {
+        onSuccess: (data) =>
+          setSnapshot({ data, windowA: requestA, windowB: requestB }),
+      },
     )
   }
 
-  const compareColumns = [
-    { title: '指标', dataIndex: 'label', width: 100 },
-    { title: `A · ${describeWindow(baseWindow)}`, dataIndex: 'a', width: 150 },
-    { title: `B · ${describeWindow(windowB)}`, dataIndex: 'b', width: 150 },
-  ]
+  const compareColumns = snapshot
+    ? [
+        { title: '指标', dataIndex: 'label', width: 100 },
+        { title: `A · ${describeWindow(snapshot.windowA)}`, dataIndex: 'a', width: 150 },
+        { title: `B · ${describeWindow(snapshot.windowB)}`, dataIndex: 'b', width: 150 },
+      ]
+    : []
 
-  const compareRows = result
+  const compareRows = snapshot
     ? ROWS.map((row) => ({
         key: row.key,
         label: row.label,
-        a: renderCompareValue(row.pick(result.windowA), row),
-        b: renderCompareValue(row.pick(result.windowB), row),
+        a: renderCompareValue(row.pick(snapshot.data.windowA), row),
+        b: renderCompareValue(row.pick(snapshot.data.windowB), row),
       }))
     : []
 
@@ -200,13 +215,13 @@ export function ReviewCompareModal({
           />
         </Space>
 
-        {result ? (
+        {snapshot ? (
           <>
             <Alert
               type="info"
               showIcon
-              message={`按 ${result.alignedTradingDays} 个交易日对齐`}
-              description={result.note}
+              message={`按 ${snapshot.data.alignedTradingDays} 个交易日对齐`}
+              description={snapshot.data.note}
             />
             <Table<{ key: string; label: string; a: ReactNode; b: ReactNode }>
               size="small"

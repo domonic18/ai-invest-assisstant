@@ -1,6 +1,6 @@
 /**
  * 交易 Agent wire 类型（与 backend/app/schemas/paper_trade.py 的
- * TradingAgentProfile / AgentOverview 系列 camelCase 对齐；docs/plan/agent-hub-plan.md）。
+ * TradingAgentProfile / AgentOverview 系列 camelCase 对齐；docs/arch/10-simulated-trading.md）。
  */
 
 /** 交易 Agent 注册行视图（身份/介绍/模型绑定/风控/总闸）。 */

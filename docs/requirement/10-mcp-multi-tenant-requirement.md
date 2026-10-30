@@ -1,6 +1,6 @@
 # MCP 多租户能力开放 需求文档
 
-> 版本：V1.0（2026-10-29 定稿）　状态：实施中
+> 版本：V1.0（2026-10-29 定稿）　状态：P0 已交付（2026-10-29）；P1 自选股读写已交付（2026-10-30），财报三件套 / 调用审计 / 限流待实现
 > 定位：把平台既有的只读投研能力以 MCP（Streamable HTTP）协议开放给外部 Agent
 > 客户端（Claude Code / WorkBuddy / 飞书投资助手），以 **API Key 多租户** 隔离身份与数据。
 > 上位文档：[04-ai-agent.md](../arch/04-ai-agent.md)（§MCP Server 终态）、
@@ -60,7 +60,7 @@
 **非目标**
 
 - 不做 OAuth 2.1 授权服务器（静态 Bearer Token 足够，客户端以 Header 携带）；
-- 不做写操作（下单/计划/自选股写入）与复盘生成触发；
+- 不做交易写操作（下单/撤单/计划/复盘生成）；自选股写入按 P1 开放（见 §5.2）；
 - 不做独立部署（挂载在现有 FastAPI 应用，共享连接池与配置）；
 - 不在 P0 做配额计量（当前无 LLM 调用，仅 KB 检索 embedding 成本，P1 再评估）。
 
@@ -103,8 +103,9 @@ MCP 客户端 ──Bearer API Key──▶ Caddy ──▶ FastAPI (:9000)
 | `market:read` | 大盘复盘、板块异动、个股异动、散户情绪 |
 | `trading:read` | 交易账户、计划、复盘、选股 |
 | `kb:read` | 知识库检索 |
-| `watchlist:read` / `watchlist:write` | 自选股读取 / 增删改（P1） |
-| `reports:read` / `reports:collect` | 财报查询 / 触发补采（P1） |
+| `watchlist:read` | 自选股分组与股票读取（P1 已上线） |
+| `watchlist:write` | 自选股分组与股票增删改（P1 已上线，未含批量移动以外的高级操作） |
+| `reports:read` / `reports:collect` | 财报查询 / 触发补采（待实现） |
 
 ### 4.3 数据归属
 
@@ -112,7 +113,7 @@ MCP 客户端 ──Bearer API Key──▶ Caddy ──▶ FastAPI (:9000)
 |---|---|---|
 | 大盘复盘 | 用户编辑版优先，回退共享 base | 按 Key 用户读取（`get_market_review`） |
 | 个股异动 | 共享检测结果 + 个人自选标注 | `is_watchlist` 按 Key 用户计算 |
-| 自选股分组 | 用户私有 | 按 Key 用户读写（P1） |
+| 自选股分组 | 用户私有 | 按 Key 用户读写（P1 已上线） |
 | 交易 Agent 账户/计划/复盘/选股 | 平台共享（Agent 专属账户） | 只读，不受用户隔离 |
 | 知识库 / 财报 / 行情异动 | 平台共享 | 只读 |
 
@@ -123,10 +124,12 @@ cc-connect 一个 project 对应一个飞书机器人 + 一套静态 MCP 配置�
 ①一用户一 project/bot；②平台自建飞书机器人，按 `open_id` 映射平台用户后注入 Key；
 ③客户端支持按会话传 Header。P0 先完成服务端多租户底座，不阻塞单用户上线。
 
-## 5. 工具契约（P0：9 个只读工具）
+## 5. 工具契约（P0：9 个只读 + P1：6 个自选股工具）
 
 通用约定：日期参数 `YYYY-MM-DD`，缺省取最新交易日；所有工具返回 JSON 对象，
 业务性失败返回 `{"error": "..."}`，鉴权/参数错误以 MCP ToolError 返回。
+
+### 5.1 P0 只读工具
 
 | 工具 | Scope | 参数 | 返回要点 |
 |---|---|---|---|
@@ -141,6 +144,19 @@ cc-connect 一个 project 对应一个飞书机器人 + 一套静态 MCP 配置�
 | `search_knowledge_base` | kb:read | `query` / `source?` / `chapter?` / `point_type?` / `include_media=false` | 知识卡片 + 原文片段 + 可溯源引用 |
 
 `agent_key` 缺省取配置 `MCP_DEFAULT_AGENT_KEY`（默认 `short-line`）。
+
+### 5.2 P1 自选股读写工具
+
+写操作只作用于 Key 所属用户的自选股（与站内个人设置同源），默认分组不可改名或删除。
+
+| 工具 | Scope | 参数 | 返回要点 |
+|---|---|---|---|
+| `list_watchlist_groups` | watchlist:read | — | `groups[{id,name,is_default,ai_review_enabled,stock_count}]` |
+| `get_watchlist` | watchlist:read | `group_name?` | 分组及 `stocks[{stock_code,stock_name,market,group_id,added_at}]` |
+| `add_watchlist_stocks` | watchlist:write | `stock_codes[]` / `group_name?` / `new_group_name?` / `tags?` | `created` / `duplicated` / `invalid`（单次 ≤50，分组参数互斥） |
+| `remove_watchlist_stocks` | watchlist:write | `stock_codes[]` / `group_name?` | `removed` / `not_found` / `mismatch[{stock_code,actual_group}]` |
+| `move_watchlist_stock` | watchlist:write | `stock_code` / `target_group_name` | 移动结果（新分组与来源分组 id） |
+| `manage_watchlist_group` | watchlist:write | `action`(create/rename/delete) / `name` / `new_name?` / `delete_items=false` | 分组信息或删除结果 |
 
 ## 6. 配置项
 
@@ -163,23 +179,25 @@ cc-connect 一个 project 对应一个飞书机器人 + 一套静态 MCP 配置�
 | DELETE | `/api/v1/users/me/api-keys/{id}` | 个人设置：吊销本人 Key（他人 Key 返回 404） |
 | DELETE | `/api/v1/users/me/api-keys/{id}/purge` | 个人设置：删除已吊销的 Key 记录（未吊销返回 400） |
 
-自助签发默认 scope = `market:read` / `trading:read` / `kb:read`
-（`API_KEY_SELF_SERVICE_SCOPES`，仅覆盖已上线的只读 MCP 工具）。
+自助签发默认 scope = `market:read` / `trading:read` / `kb:read` /
+`watchlist:read` / `watchlist:write`（`API_KEY_SELF_SERVICE_SCOPES`，覆盖已上线的
+MCP 工具；已签发的旧 Key 需重新签发才能获得自选股权限）。
 前端入口：个人设置 → 「MCP 密钥」（签发后明文只展示一次）。
 
 ## 8. 验收标准
 
 1. 未携带/携带错误 Key 请求 `/api/v1/mcp` 返回 401；其余 REST 路由行为不变；
-2. 携带有效 Key 完成 MCP `initialize → tools/list → tools/call`，9 个工具均可见；
+2. 携带有效 Key 完成 MCP `initialize → tools/list → tools/call`，15 个工具均可见
+   （9 个只读 + 6 个自选股）；
 3. 缺失 Scope 调用对应工具返回明确错误（提示所需 scope），不返回空数据；
-4. 两个不同用户的 Key 调用 `get_stock_anomaly`，`is_watchlist` 标注各自独立
-   （P1 自选股读写完成后验证读写隔离）；
+4. 两个不同用户的 Key 调用 `get_stock_anomaly` 与自选股工具，`is_watchlist` 与
+   分组/股票列表各自独立，写操作互不影响；
 5. 吊销或过期后立即 401；`last_used_at` 在节流窗口内只写一次；
 6. 大盘复盘读取用户编辑版优先、回退共享 base，与站内 `GET /market/ai-review` 一致；
 7. 全部新增单元测试通过，`ruff check` / `mypy app/` 无新增问题。
 
 ## 9. 实施批次
 
-- **P0（本次）**：`user_api_key` 迁移/模型/服务/管理接口 + MCP 服务端与 9 个只读工具 + 单测。
-- **P1**：自选股分组与股票读写（6 个工具）、财报三件套、调用审计与 Redis 限流。
+- **P0（已交付 2026-10-29）**：`user_api_key` 迁移/模型/服务/管理接口 + MCP 服务端与 9 个只读工具 + 单测。
+- **P1**：自选股分组与股票读写（6 个工具，已交付 2026-10-30）；财报三件套、调用审计与 Redis 限流待实现。
 - **P2**：cc-connect/飞书机器人接入、端到端验收、WorkBuddy 兼容性验证、多用户开通流程。

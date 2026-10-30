@@ -7,9 +7,9 @@
 
 - **数据源**：东方财富、新浪财经、同花顺(10jqka)、巨潮资讯(cninfo)、Tushare、上交所/深交所、财联社、抖音（社媒，经 douyin-signer 签名）、CME / MOF / Fed / BLS（海外宏观）
 - **采集内容**：行情(K 线/分时/竞价)、财务报表、涨停/跌停池、板块行情与资金流、研报与财报 PDF、公告与新闻（含财联社电报准实时快讯）、市场宽度、宏观指标、投资日历事件、全球跟踪指标（黄金/美债收益率/美元指数等）、异动检测数据、社媒视频/评论、知识库文档
-- **AI 能力**：产业链分析、研报/财报摘要、涨停归因、每日 AI 大盘综述（六分区 v1.5.0，可模块级编辑）、自选股 AI 每日分析（六分区契约 v3.0.0）、异动归因、社媒情绪解读、AI 智能画线、AI 选股、知识库检索问答
+- **AI 能力**：产业链分析、研报/财报摘要、涨停归因、每日 AI 大盘综述（六分区 v1.5.0，可模块级编辑）、自选股 AI 每日分析（六分区契约 v3.0.0）、异动归因、社媒情绪解读、AI 智能画线、AI 选股、知识库检索问答、模拟盘交易 Agent（选股 / 计划 / 盘中自主执行 / 六档多周期复盘）
 - **输出形式**：响应式 Web 前端（桌面 + 移动端底部导航）+ AI 助手对话面板
-- **部署方式**：SCF Web 函数（SPA + API 同源一体镜像）+ 轻量服务器（数据与采集任务）+ COS（文件），见 §2 部署架构全景图
+- **部署方式**：轻量应用服务器单机承载（Caddy TLS 入口 + web 一体镜像 + 数据与采集任务）+ 对象存储（文件），见 §2 部署架构全景图
 
 ## 2. 部署架构全景图
 
@@ -20,35 +20,30 @@
                      │ HTTPS（SPA + /api/* 同源）
                      ▼
 ┌──────────────────────────────────────────────────────────────────────────────┐
-│ SCF Web 函数 — web 一体镜像（:9000）                                     │
-│ React SPA + FastAPI 单 uvicorn 进程（SPA 静态托管）· SSE 流式输出            │
-│ deepagents 助手对话进程内承载 · 预置并发保冷启动 · 执行上限 900s              │
+│ 轻量应用服务器（ap-beijing）                                                 │
+│                                                                              │
+│  caddy :80/:443 — TLS 终止 + 反代 web:9000（SSE 关闭缓冲）                    │
+│                     │                                                        │
+│  web 一体镜像 :9000 — React SPA + FastAPI 单 uvicorn 进程（同源静态托管）     │
+│       SSE 流式输出 · deepagents 助手对话进程内承载                           │
+│                                                                              │
+│  postgres/timescale · redis（缓存/broker/锁）                                │
+│  celery-beat + 双 worker（realtime+batch 合并 · heavy 并发=1）               │
+│  collector-stream（财联社电报 10s 轮询）· 采集爬虫 + LLM 归因                │
+│  douyin-signer 抖音签名 sidecar · paper-trade 掘金仿真柜台 sidecar           │
+│  agent-intraday-exec 盘中执行驻留进程（交易时段 60s tick，影子模式先行）     │
+│  S3 兼容对象存储（研报/财报 PDF · 知识库文件 · pg_dump 备份）               │
+│                     ─▶ 东财 / 新浪 / 巨潮 / tushare / 抖音                    │
 └──────────────────────────────────────────────────────────────────────────────┘
-                        │ 公网直连（读写 PG/Redis）                       │ S3 协议
-                        ▼                                        ▼
-┌────────────────────────────────────────────┐   ┌──────────────────────────────┐
-│ 轻量应用服务器 2C4G（ap-beijing）          │   │ COS 对象存储                 │
-│ 数据层 postgres/timescale · redis          │   │ 研报/财报 PDF · 知识库文件   │
-│ 任务层 celery-beat + 双 worker             │   │ pg_dump 定时备份目标         │
-│   （realtime+batch 合并 · heavy 并发=1）   │   └──────────────────────────────┘
-│   collector-stream（财联社电报 10s 轮询）  │
-│   采集爬虫 + LLM 归因                      │
-│   douyin-signer 抖音签名 sidecar           │
-│   （>900s / WAF 固定出口，永久驻留）       │
-│   paper-trade 掘金仿真柜台 sidecar         │
-│   agent-intraday-exec 盘中执行驻留进程     │
-│   （交易时段 60s tick，影子模式先行）      │
-│     ─▶ 东财 / 新浪 / 巨潮 / tushare / 抖音 │
-└────────────────────────────────────────────┘
 ```
 
-- **接入层**：SCF Web 函数自定义域名 invest.17aitech.com（已备案），SPA 与 API 同源一体（单 uvicorn 进程一体镜像 :9000），助手对话进程内承载
-- **API 层**：SCF Web 函数（FastAPI 一体镜像），SSE 流式输出；长任务（>900s）与需固定出口 IP 的采集爬虫留置轻量服务器执行
-- **数据与任务层**：轻量服务器承载 postgres/timescale、redis 与 Celery 采集调度（`collector_task` 表为调度真相源）
-- **文件存储**：COS（S3 兼容端点），兼作 pg_dump 定时备份目标
-- **镜像发布**：GitHub Actions 构建推送 TCR（web / collector / douyin-signer / paper-trade 四镜像），服务器/SCF 拉取部署
+- **接入层**：Caddy 终止 TLS 并反代 `web:9000`，自定义域名 invest.17aitech.com；SPA 与 API 同源一体
+- **API 层**：web 一体镜像（FastAPI + SPA 静态托管）单 uvicorn 进程 :9000，SSE 流式输出；长任务与需固定出口 IP 的采集爬虫由同机 Celery worker 承载
+- **数据与任务层**：postgres/timescale、redis 与 Celery 采集调度（`collector_task` 表为调度真相源）
+- **文件存储**：S3 兼容对象存储（MinIO / COS），兼作 pg_dump 定时备份目标
+- **镜像发布**：GitHub Actions 构建推送 TCR（web / collector / douyin-signer / paper-trade / caddy 五镜像），服务器 docker compose 拉取部署
 
-> Web 与采集共享同一套 `backend/` 代码：`app/` 是 FastAPI Web 服务，`collector/` 是采集 runtime，通过 Celery 队列（realtime/batch/heavy）执行，亦保留 CLI 单任务入口 `collector.runtime.cli` 与 SCF 事件适配 `collector.runtime.scf_handler`。
+> Web 与采集共享同一套 `backend/` 代码：`app/` 是 FastAPI Web 服务，`collector/` 是采集 runtime，通过 Celery 队列（realtime/batch/heavy）执行，亦保留 CLI 单任务入口 `collector.runtime.cli` 与云函数事件适配 `collector.runtime.scf_handler`（保留代码，当前不部署）。
 
 ## 3. 系统逻辑架构
 
@@ -56,7 +51,7 @@
 ┌────────────────────────────────────────────────────────────────────────────────────┐
 │ 用户层 (User Layer)                                                                │
 │ 工作台 / 复盘 / 产业链 / 个股 / 资金流 / 集合竞价 / 异动检测 / 资讯 / 日历        │
-│ 研报 / 财报 / 知识检索 / AI 选股 / 宏观监测 / 后台管理                            │
+│ 研报 / 财报 / 知识检索 / AI 选股 / 宏观监测 / 模拟交易 / 交易 Agent / 后台管理    │
 │ 移动 Web：响应式 + 底部 Tab Bar · AI 助手对话面板                                  │
 └────────────────────────────────────────────────────────────────────────────────────┘
                                          HTTPS
@@ -91,7 +86,7 @@
 ┌────────────────────────────────────────────────────────────────────────────────────┐
 │ 数据层                                                                             │
 │ PostgreSQL/Timescale（结构化 + 时序 + 全文/向量检索）│ Redis（缓存/broker/锁）   │
-│ COS（研报/财报 PDF · 知识库文件）                                                  │
+│ S3 兼容对象存储（研报/财报 PDF · 知识库文件）                                      │
 └────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -99,20 +94,20 @@
 
 | 层次 | 技术 | 部署位置 | 选型理由 |
 |------|------|----------|----------|
-| **Web 前端** | React 18 + Vite + TypeScript | SCF web 一体镜像（FastAPI 静态托管同源） | 现代前端框架，生态完善 |
-| **后端 API** | FastAPI (Python 3.10+) + SQLAlchemy 2.0 | SCF Web 函数（单 uvicorn 进程一体镜像） | 异步高性能、类型安全 |
-| **AI 助手运行时** | deepagents（LangChain Agent Protocol）+ assistant-ui | SCF web 进程内 | 流式对话/工具调用，会话持久化 `assistant_session` |
+| **Web 前端** | React 18 + Vite + TypeScript | web 一体镜像（FastAPI 静态托管同源） | 现代前端框架，生态完善 |
+| **后端 API** | FastAPI (Python 3.10+) + SQLAlchemy 2.0 | web 一体镜像（单 uvicorn 进程，Caddy 反代） | 异步高性能、类型安全 |
+| **AI 助手运行时** | deepagents（LangChain Agent Protocol）+ assistant-ui | web 进程内 | 流式对话/工具调用，会话持久化 `assistant_session` |
 | **数据采集** | 自研 collector runtime + Celery + httpx/akshare/curl_cffi | 轻量服务器 Celery 双 worker（realtime+batch / heavy 并发=1） | 声明式 TaskSpec 注册表（64 任务）+ 多渠道 fallback |
 | **盘中自主执行** | asyncio 驻留进程 + L0 确定性风控 / L1 判断模型（Jev）/ L2 慢模型复核 | 轻量服务器常驻容器（交易时段 60s tick） | 影子模式先行（off/shadow/active 三态），tick 判断逐笔留痕观测表 |
 | **可视化** | ECharts + AntV/G6 v5 + D3.js | 前端打包至 web 镜像 | 产业链图谱(G6)、K线/竞价(ECharts)、板块河流/排名(D3/ECharts) |
 | **结构化存储** | PostgreSQL + TimescaleDB | 轻量服务器 Docker | 时序行情数据高效存储 |
 | **全文/向量检索** | PostgreSQL（pg_trgm + pgvector halfvec HNSW） | 轻量服务器 Docker | 研报/财报全文与知识库混合检索同库，零独立搜索引擎运维 |
-| **文件存储** | COS (S3 兼容) | 腾讯云 COS | PDF 财报/研报对象存储，兼作 pg_dump 备份目标 |
+| **文件存储** | S3 兼容对象存储（MinIO / COS） | 轻量服务器 Docker | PDF 财报/研报对象存储，兼作 pg_dump 备份目标 |
 | **缓存/队列** | Redis | 轻量服务器 Docker | 热数据缓存、Session、Celery broker、分布式锁 |
 | **AI Agent** | deepagents (LangChain/LangGraph) + YAML Prompts + Skills + MCP | web 进程内 | OpenAI/Anthropic 双协议统一模型工厂 |
 | **认证** | JWT (OAuth2 表单) | FastAPI 模块 | 管理员经 `python -m app.cli.bootstrap_admin` 显式提权 |
 | **容器化** | Docker + Docker Compose | 轻量服务器 | 环境统一，一键部署 |
-| **CI/CD** | GitHub Actions → TCR | GitHub | 自动构建推送，服务器/SCF 仅 pull 部署 |
+| **CI/CD** | GitHub Actions → TCR | GitHub | 自动构建推送，服务器仅 pull 部署 |
 
 ## 5. 项目目录结构
 
@@ -120,7 +115,8 @@
 ai-invest-assisstant/
 ├── .github/
 │   └── workflows/
-│       └── ci.yml                      # GitHub Actions CI/CD（构建 → TCR）
+│       ├── ci.yml                      # GitHub Actions CI/CD（构建 → TCR）
+│       └── build-caddy.yml             # Caddy 镜像低频手动构建（源构建 → TCR）
 │
 ├── backend/                            # FastAPI 后端 + 采集模块
 │   ├── app/                            # Web API 应用
@@ -328,7 +324,7 @@ ai-invest-assisstant/
 │ 数据存储                                                                   │
 │ PostgreSQL/Timescale：行情 / 股池 / 资金流 / 财务 / 全球指标 /             │
 │ 日历事件 / 调度元数据 / 新闻公告与研报财报全文（pg_trgm）/                  │
-│ 知识库向量（pgvector halfvec HNSW）· COS：研报/财报 PDF 文件               │
+│ 知识库向量（pgvector halfvec HNSW）· 对象存储：研报/财报 PDF 文件         │
 └────────────────────────────────────────────────────────────────────────────┘
                                      查询│
                                        ▼
@@ -347,7 +343,7 @@ ai-invest-assisstant/
                                      展示│
                                        ▼
 ┌────────────────────────────────────────────────────────────────────────────┐
-│ 前端可视化（React SPA · SCF web 同源托管）                             │
+│ 前端可视化（React SPA · web 一体镜像同源托管）                         │
 │ 工作台 / 复盘 / 产业链 / 个股 / 资金流 / 宏观 / 资讯 / 日历 / 技能 / 后台  │
 └────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -383,7 +379,11 @@ ai-invest-assisstant/
 | AI 选股 | ✅ | ❌ | 自然语言筛选工作台（/screening），侧边栏 Agent 触发 + page_event 回写 |
 | 知识检索 | ✅ 路由保留 | ✅ | 知识库语义检索 + 电子书阅读器；导航入口暂撤（/kb 路由保留，见 [09](./09-knowledge-base.md)） |
 | AI 智能画线 | ✅ K 线图层 | ❌ | 对话触发 + 问题卡确认，AI 画线图层原位编辑/采纳（见 05 号文档 §5.3） |
-| 后台管理 | ✅ 11 入口 + 代理配置 | ❌ | 用户 / 用量看板 / 股票 / 报告（存储统计 + 清理）/ 资讯 / LLM 配置 / MCP 服务（工具注入 AI 助手）/ 分析结果 / 采集管理三合一（执行日志 · 任务 cron · 渠道优先级）/ 社媒追踪 / 服务状态；知识库管理独立子页，代理配置仅侧边栏子菜单进入 |
+| 模拟交易 | ✅ 多账户 | ❌ | 掘金仿真 REST sidecar + 本地落库；按账户展示资金/持仓/委托/净值；人工限价/市价下单与撤单（见 [10](./10-simulated-trading.md)） |
+| 交易 Agent | ✅ admin-only | ❌ | 独立页 `/trading-agent`：对话 / 计划 / 执行动态 / 复盘（六档周期）/ 记忆 / 配置；盘中自主执行四层栈与 10:20/13:20 计划校准（见 [10](./10-simulated-trading.md)） |
+| 港股支持 | ✅ 主数据/日 K/自选 | ✅ 同左 | 港股主数据与日 K 采集、搜索与自选；模拟交易不支持港股 |
+| MCP Server | ✅ | ✅ | `/api/v1/mcp` Streamable HTTP；API Key 按 scope 鉴权，只读行情/复盘 + 自选股读写工具，个人设置内自助管理密钥 |
+| 后台管理 | ✅ 16 入口 + 代理配置 | ❌ | 用户 / 用户组 / 用量看板 / 股票 / 报告（存储统计 + 清理）/ 资讯 / 模型配置 / 知识库 / MCP 服务（工具注入 AI 助手）/ 社媒追踪 / 分析结果 / 执行轨迹 / 采集管理三合一（执行日志 · 任务 cron · 渠道优先级）/ 服务状态 / 交易日历；代理配置仅侧边栏子菜单进入 |
 
 ## 8. 后续文档索引
 
@@ -396,3 +396,4 @@ ai-invest-assisstant/
 - [07-account-quota.md](./07-account-quota.md) — 账户体系、AI 配额与计量
 - [08-social-sentiment.md](./08-social-sentiment.md) — 社媒情绪（抖音采集与 ASR）
 - [09-knowledge-base.md](./09-knowledge-base.md) — 知识库（上传/转写/检索/阅读器）
+- [10-simulated-trading.md](./10-simulated-trading.md) — 模拟交易与交易 Agent（人工交易 / 盘中自主执行 / 多周期复盘）

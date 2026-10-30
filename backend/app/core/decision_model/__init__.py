@@ -1,7 +1,7 @@
 """判断模型接入层（D23）：System One 品类接口契约的 vendor 无关封装。
 
 core 叶子模块——任何层可顶层导入；DB 解析与 failover 编排在服务层
-（``app.services.admin.decision_model_service``）。设计见 paper-trading-plan §11.6。
+（``app.services.admin.decision_model_service``）。设计见 docs/arch/10-simulated-trading.md §9。
 """
 
 from app.core.decision_model.adapter import DecisionModelAdapter, SystemOneAdapter
