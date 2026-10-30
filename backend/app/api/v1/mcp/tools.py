@@ -1,8 +1,9 @@
-"""MCP 只读工具集（docs/requirement/10 §5）。
+"""MCP 工具集（docs/requirement/10 §5）。
 
 工具层只做三件事：Scope 校验、参数解析、复用服务层取数后裁剪输出。
-写操作与 LLM 生成入口不在此开放；业务失败返回 ``{"error": ...}``，
-鉴权/越权以 ``ToolError`` 返回（客户端可区分协议错误与业务空态）。
+开放范围：9 个只读工具（P0）+ 6 个自选股工具（P1，读写 scope 分离）；
+交易写操作（下单/计划）与 LLM 生成入口不在此开放。业务失败返回
+``{"error": ...}``，鉴权/越权以 ``ToolError`` 返回（客户端可区分协议错误与业务空态）。
 """
 
 from datetime import date
@@ -17,10 +18,13 @@ from app.core.constants import (
     API_KEY_SCOPE_KB_READ,
     API_KEY_SCOPE_MARKET_READ,
     API_KEY_SCOPE_TRADING_READ,
+    API_KEY_SCOPE_WATCHLIST_READ,
+    API_KEY_SCOPE_WATCHLIST_WRITE,
 )
 from app.core.database import AsyncSessionLocal
 
 _MAX_ANOMALY_LIMIT = 50
+_MAX_WATCHLIST_BATCH = 50
 
 
 def _require_scope(scope: str) -> int:
@@ -377,8 +381,283 @@ async def search_knowledge_base(
     )
 
 
+def _group_payload(group: Any) -> dict[str, Any]:
+    return {
+        "id": group.id,
+        "name": group.name,
+        "is_default": group.is_default,
+        "ai_review_enabled": group.ai_review_enabled,
+        "stock_count": len(group.items),
+    }
+
+
+async def list_watchlist_groups() -> dict[str, Any]:
+    """列出自选股分组（名称、是否默认、AI 复盘开关、股票数量）。"""
+    user_id = _require_scope(API_KEY_SCOPE_WATCHLIST_READ)
+
+    from app.services.user.watchlist_service import WatchlistService
+
+    async with AsyncSessionLocal() as session:
+        groups = await WatchlistService(session).list_groups_with_items(user_id)
+    return {"groups": [_group_payload(group) for group in groups]}
+
+
+async def get_watchlist(group_name: str | None = None) -> dict[str, Any]:
+    """读取当前用户自选股（名称+代码+市场+加入日期），可按分组名精确过滤。
+
+    Args:
+        group_name: 分组名，如「日周60」；缺省返回全部分组。
+    """
+    user_id = _require_scope(API_KEY_SCOPE_WATCHLIST_READ)
+
+    from app.repositories.market.stock_repository import StockRepository
+    from app.services.user.watchlist_service import WatchlistService
+
+    async with AsyncSessionLocal() as session:
+        groups = await WatchlistService(session).list_groups_with_items(user_id)
+        names = await StockRepository(session).get_names_by_codes(
+            [item.stock_code for group in groups for item in group.items]
+        )
+    payload = [
+        {
+            **_group_payload(group),
+            "stocks": [
+                {
+                    "stock_code": item.stock_code,
+                    "stock_name": names.get(item.stock_code),
+                    "market": item.market,
+                    "group_id": item.group_id,
+                    "added_at": item.created_at.date().isoformat(),
+                }
+                for item in group.items
+            ],
+        }
+        for group in groups
+    ]
+
+    if group_name is not None:
+        matched = [group for group in payload if group["name"] == group_name]
+        if not matched:
+            return {
+                "groups": [],
+                "hint": (
+                    f"未找到分组「{group_name}」，可用分组："
+                    f"{[group['name'] for group in payload]}"
+                ),
+            }
+        return {"groups": matched}
+    return {"groups": payload}
+
+
+async def add_watchlist_stocks(
+    stock_codes: list[str],
+    group_name: str | None = None,
+    new_group_name: str | None = None,
+    tags: list[str] | None = None,
+) -> dict[str, Any]:
+    """向自选股添加股票（写操作）。
+
+    可指定已有分组（group_name）、新建分组（new_group_name）或落默认分组（都不传），
+    两个分组参数互斥。重复股票不重复添加（归入 duplicated），代码不在主数据的
+    归入 invalid。单次最多 50 只。
+
+    Args:
+        stock_codes: 股票代码列表，如 ["000001", "600519", "00700"]（港股 5 位）。
+        group_name: 目标已有分组名。
+        new_group_name: 新建分组名。
+        tags: 附加标签列表。
+    """
+    user_id = _require_scope(API_KEY_SCOPE_WATCHLIST_WRITE)
+
+    codes = list(
+        dict.fromkeys(code.strip() for code in stock_codes if code and code.strip())
+    )
+    if not codes:
+        return {"error": "stock_codes 不能为空"}
+    if len(codes) > _MAX_WATCHLIST_BATCH:
+        return {"error": f"单次最多添加 {_MAX_WATCHLIST_BATCH} 只股票"}
+    if group_name and new_group_name:
+        return {"error": "group_name 与 new_group_name 只能二选一"}
+
+    from app.core.exceptions import AppError
+    from app.models.user import User
+    from app.schemas.user import WatchlistBatchCreate, WatchlistBatchItemCreate
+    from app.services.user.watchlist_service import WatchlistService
+
+    async with AsyncSessionLocal() as session:
+        service = WatchlistService(session)
+        group_id: int | None = None
+        if group_name:
+            group = await service.get_group_by_name(user_id, group_name)
+            if group is None:
+                groups = await service.list_groups_with_items(user_id)
+                return {
+                    "error": f"未找到分组「{group_name}」",
+                    "available_groups": [item.name for item in groups],
+                }
+            group_id = group.id
+        user = await session.get(User, user_id)
+        if user is None:
+            return {"error": "账号不存在或已删除"}
+        try:
+            result = await service.batch_add_items(
+                user,
+                WatchlistBatchCreate(
+                    items=[
+                        WatchlistBatchItemCreate(stock_code=code, tags=tags)
+                        for code in codes
+                    ],
+                    group_id=group_id,
+                    new_group_name=new_group_name,
+                ),
+            )
+        except AppError as exc:
+            return {"error": str(exc)}
+    return result.model_dump(mode="json")
+
+
+async def remove_watchlist_stocks(
+    stock_codes: list[str],
+    group_name: str | None = None,
+) -> dict[str, Any]:
+    """从自选股删除股票（写操作，不可恢复）。
+
+    返回 removed / not_found / mismatch 三类结果；给定 group_name 时不属于
+    该分组的代码不会删除，而列入 mismatch 并附实际所在分组。
+
+    Args:
+        stock_codes: 股票代码列表。
+        group_name: 可选分组名校验。
+    """
+    user_id = _require_scope(API_KEY_SCOPE_WATCHLIST_WRITE)
+
+    codes = list(
+        dict.fromkeys(code.strip() for code in stock_codes if code and code.strip())
+    )
+    if not codes:
+        return {"error": "stock_codes 不能为空"}
+
+    from app.core.exceptions import AppError
+    from app.services.user.watchlist_service import WatchlistService
+
+    async with AsyncSessionLocal() as session:
+        try:
+            return await WatchlistService(session).remove_watchlist_stocks(
+                user_id, codes, group_name
+            )
+        except AppError as exc:
+            return {"error": str(exc)}
+
+
+async def move_watchlist_stock(
+    stock_code: str,
+    target_group_name: str,
+) -> dict[str, Any]:
+    """把一只自选股移动到目标分组（写操作）。
+
+    Args:
+        stock_code: 股票代码（须已在自选股中）。
+        target_group_name: 目标分组名。
+    """
+    user_id = _require_scope(API_KEY_SCOPE_WATCHLIST_WRITE)
+    code = stock_code.strip()
+    if not code:
+        return {"error": "stock_code 不能为空"}
+
+    from app.core.exceptions import AppError
+    from app.services.user.watchlist_service import WatchlistService
+
+    async with AsyncSessionLocal() as session:
+        service = WatchlistService(session)
+        target = await service.get_group_by_name(user_id, target_group_name)
+        if target is None:
+            groups = await service.list_groups_with_items(user_id)
+            return {
+                "error": f"未找到分组「{target_group_name}」",
+                "available_groups": [item.name for item in groups],
+            }
+        item = await service.get_item_by_stock_code(user_id, code)
+        if item is None:
+            return {"error": f"自选股中不存在 {code}，请先用 add_watchlist_stocks 添加"}
+        previous_group_id = item.group_id
+        try:
+            moved = await service.move_watchlist_item(user_id, item.id, target.id)
+        except AppError as exc:
+            return {"error": str(exc)}
+    return {
+        "stock_code": moved.stock_code,
+        "group_id": moved.group_id,
+        "group_name": target.name,
+        "previous_group_id": previous_group_id,
+    }
+
+
+async def manage_watchlist_group(
+    action: str,
+    name: str,
+    new_name: str | None = None,
+    delete_items: bool = False,
+) -> dict[str, Any]:
+    """管理自选股分组（写操作）：create 新建 / rename 改名 / delete 删除。
+
+    默认分组不可改名或删除；删除非空分组时 delete_items=False 会把组内
+    股票移入默认分组，True 则连同股票一起删除。
+
+    Args:
+        action: create / rename / delete。
+        name: 目标分组名（rename/delete 为现有名称）。
+        new_name: rename 时的新名称。
+        delete_items: delete 时是否连同组内股票一起删除。
+    """
+    user_id = _require_scope(API_KEY_SCOPE_WATCHLIST_WRITE)
+    if action not in ("create", "rename", "delete"):
+        return {"error": f"无效的 action：{action}（应为 create / rename / delete）"}
+    if action == "rename" and not new_name:
+        return {"error": "rename 需要提供 new_name"}
+    if not name.strip():
+        return {"error": "name 不能为空"}
+
+    from app.core.exceptions import AppError
+    from app.schemas.user import WatchlistGroupCreate, WatchlistGroupUpdate
+    from app.services.user.watchlist_service import WatchlistService
+
+    async with AsyncSessionLocal() as session:
+        service = WatchlistService(session)
+        try:
+            if action == "create":
+                group = await service.create_group(
+                    user_id, WatchlistGroupCreate(name=name.strip())
+                )
+                return {"action": action, "group": _group_payload(group)}
+            existing = await service.get_group_by_name(user_id, name.strip())
+            if existing is None:
+                groups = await service.list_groups_with_items(user_id)
+                return {
+                    "error": f"未找到分组「{name}」",
+                    "available_groups": [item.name for item in groups],
+                }
+            if action == "rename":
+                updated = await service.update_group(
+                    user_id,
+                    existing.id,
+                    WatchlistGroupUpdate(name=new_name),
+                )
+                return {"action": action, "group": _group_payload(updated)}
+            await service.delete_group(
+                user_id, existing.id, delete_items=delete_items
+            )
+        except AppError as exc:
+            return {"error": str(exc)}
+    return {
+        "action": action,
+        "deleted": True,
+        "group_name": name.strip(),
+        "delete_items": delete_items,
+    }
+
+
 def register_tools(mcp: FastMCP) -> None:
-    """把只读工具注册到 FastMCP 实例（工具描述取函数 docstring）。"""
+    """把工具注册到 FastMCP 实例（工具描述取函数 docstring）。"""
     for fn in (
         get_market_daily_review,
         get_sector_anomaly,
@@ -389,5 +668,11 @@ def register_tools(mcp: FastMCP) -> None:
         get_trading_review,
         get_trading_selections,
         search_knowledge_base,
+        list_watchlist_groups,
+        get_watchlist,
+        add_watchlist_stocks,
+        remove_watchlist_stocks,
+        move_watchlist_stock,
+        manage_watchlist_group,
     ):
         mcp.add_tool(fn)

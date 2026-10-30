@@ -148,6 +148,18 @@ class WatchlistService:
         """获取用户自选股列表。"""
         return await self.repo.list_by_user(user_id)
 
+    async def get_group_by_name(
+        self, user_id: int, name: str
+    ) -> UserWatchlistGroup | None:
+        """按名称取用户分组（只读辅助，供工具层解析分组名）。"""
+        return await self.group_repo.get_by_name(user_id, name)
+
+    async def get_item_by_stock_code(
+        self, user_id: int, stock_code: str
+    ) -> UserWatchlist | None:
+        """按股票代码取用户自选项（只读辅助，供工具层解析代码）。"""
+        return await self.repo.get_by_user_and_stock(user_id, stock_code)
+
     async def add_watchlist_item(
         self, user: User, data: WatchlistItemCreate
     ) -> UserWatchlist:

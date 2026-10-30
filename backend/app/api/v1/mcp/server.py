@@ -32,10 +32,10 @@ def _build_server() -> FastMCP:
     server = FastMCP(
         name="AI Invest Assistant",
         instructions=(
-            "智能投研平台只读工具集：大盘复盘、板块/个股异动、散户情绪、"
-            "交易 Agent 账户/计划/复盘/选股、知识库检索。"
-            "所有工具均为只读，业务失败返回 {error: ...}；"
-            "日期参数格式 YYYY-MM-DD，缺省取最新交易日。"
+            "智能投研平台工具集：大盘复盘、板块/个股异动、散户情绪、"
+            "交易 Agent 账户/计划/复盘/选股、知识库检索（只读），"
+            "以及自选股分组与股票读写。交易下单/计划与 LLM 生成入口不开放；"
+            "业务失败返回 {error: ...}；日期参数格式 YYYY-MM-DD，缺省取最新交易日。"
         ),
         token_verifier=DbApiKeyVerifier(),
         # 静态 Bearer 模式：issuer 仅作 AuthSettings 必填占位，不做 OAuth 发现
