@@ -274,4 +274,10 @@ def test_all_tools_registered():
         "get_trading_review",
         "get_trading_selections",
         "search_knowledge_base",
+        "list_watchlist_groups",
+        "get_watchlist",
+        "add_watchlist_stocks",
+        "remove_watchlist_stocks",
+        "move_watchlist_stock",
+        "manage_watchlist_group",
     ]
