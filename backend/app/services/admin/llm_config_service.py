@@ -13,6 +13,7 @@ from typing import Any, cast
 
 import httpx
 import structlog
+from cryptography.fernet import InvalidToken
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import InternalError, NotFoundError, UnprocessableEntityError
@@ -334,6 +335,16 @@ class LLMConfigService:
             )
 
     async def _to_response(self, config: LLMConfig) -> LLMConfigResponse:
+        try:
+            api_key_masked = mask_token(decrypt_token(config.api_key_encrypted))
+        except InvalidToken:
+            # 凭据密钥轮换后旧密文无法解密：列表降级展示，不能整页 500
+            logger.warning(
+                "llm_config_decryption_failed",
+                config_id=config.id,
+                message="Stored API key cannot be decrypted with current key",
+            )
+            api_key_masked = "[无法解密，请重新录入]"
         return LLMConfigResponse(
             id=config.id,
             name=config.name,
@@ -341,7 +352,7 @@ class LLMConfigService:
             protocol=config.protocol,
             base_url=config.base_url,
             model_name=config.model_name,
-            api_key_masked=mask_token(decrypt_token(config.api_key_encrypted)),
+            api_key_masked=api_key_masked,
             is_default=config.is_default,
             is_active=config.is_active,
             purpose=config.purpose,

@@ -20,6 +20,11 @@ from app.services.trading.agent_review_sections import (
 #: 预检无复盘对象时落缓存行的系统标记原因（展示层据此与「未执行」区分）
 NO_TARGET_REASON = "复盘窗口内无委托成交，账户亦无历史持仓（空仓无复盘对象）"
 
+#: 落库契约版本（缓存键组成部分）：持久化契约新增必填键时 +1，使旧版本缓存行
+#: 自然失配并重算——否则旧行被 before-validator 补空值取出，用户看到空 sections
+#: 等被静默降级的复盘（B3 事故形态）。
+REVIEW_CONTRACT_VERSION = 2
+
 
 class TradeVerdict(BaseModel):
     """单笔委托的三层判定（字段禁默认值——LLM 必须对每层显式表态）。"""

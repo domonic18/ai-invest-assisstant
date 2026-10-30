@@ -35,11 +35,11 @@ from app.services.trading.paper_trade_converters import (
     bare_stock_code,
 )
 
-#: 每类关键交易条数上限（盈利/亏损/计划外/区间外各自）
+#: 每类关键交易条数上限（盈利/亏损/计划外/区间外/废单拒单各自）
 KEY_TRADE_TOP_N = 3
 
-#: 关键交易总数上限（控输入规模）
-KEY_TRADE_MAX = 12
+#: 关键交易总数上限 = 五类各自上限之和（控输入规模，且不淘汰任何整类）
+KEY_TRADE_MAX = KEY_TRADE_TOP_N * 5
 
 TAG_WINNER = "盈利前列"
 TAG_LOSER = "亏损前列"
@@ -68,6 +68,11 @@ class KeyTradeSelection:
                 "不代表全部交易"
             ),
         }
+
+
+def _dedupe(cl_ord_ids: Sequence[str]) -> list[str]:
+    """保序去重（限量前先合并重复委托 id，避免名额被占）。"""
+    return list(dict.fromkeys(cl_ord_ids))
 
 
 def _plan_index(
@@ -108,8 +113,10 @@ def select_key_trades(
 ) -> KeyTradeSelection:
     """确定性筛选关键交易（纯函数）。
 
-    优先级：盈利前列 → 亏损前列 → 计划外/区间外 → 废单拒单；同笔多标签
-    合并保留，总数截断到 ``KEY_TRADE_MAX``。
+    五类各自限量（``KEY_TRADE_TOP_N``）后按优先级合并：盈利前列 → 亏损前列
+    → 计划外单 → 计划区间外 → 废单拒单。逐类限量保证废单（需求 §4.2 必点评
+    对象）不会被其他类别挤出；``KEY_TRADE_MAX`` 是所有类别上限之和，仅作
+    输入规模兜底。同笔多标签合并保留。
     """
     tags: dict[str, list[str]] = {}
     order: list[str] = []
@@ -139,19 +146,46 @@ def select_key_trades(
         add(trade.cl_ord_id, TAG_LOSER)
 
     index = _plan_index(plans)
+    off_plan: list[str] = []
+    out_of_zone: list[str] = []
     for execution in executions:
         tag = _deviation_tag(execution, index)
-        if tag is not None:
-            add(execution.cl_ord_id, tag)
-
-    for cl_ord_id in rejected_cl_ord_ids:
+        if execution.cl_ord_id is None:
+            continue
+        if tag == TAG_OFF_PLAN:
+            off_plan.append(execution.cl_ord_id)
+        elif tag == TAG_OUT_OF_ZONE:
+            out_of_zone.append(execution.cl_ord_id)
+    unique_off_plan = _dedupe(off_plan)
+    unique_out_of_zone = _dedupe(out_of_zone)
+    unique_rejected = _dedupe(rejected_cl_ord_ids)
+    for cl_ord_id in unique_off_plan[:KEY_TRADE_TOP_N]:
+        add(cl_ord_id, TAG_OFF_PLAN)
+    for cl_ord_id in unique_out_of_zone[:KEY_TRADE_TOP_N]:
+        add(cl_ord_id, TAG_OUT_OF_ZONE)
+    for cl_ord_id in unique_rejected[:KEY_TRADE_TOP_N]:
         add(cl_ord_id, TAG_REJECTED)
+
+    # 候选数按限量前的全部合格委托计（限量后被丢弃的条数对 LLM 可见）
+    ranked = [trade.cl_ord_id for trade in (*winners, *losers)]
+    candidates = _dedupe(
+        [
+            cl_ord_id
+            for cl_ord_id in (
+                *ranked,
+                *unique_off_plan,
+                *unique_out_of_zone,
+                *unique_rejected,
+            )
+            if cl_ord_id
+        ]
+    )
 
     kept = order[:KEY_TRADE_MAX]
     return KeyTradeSelection(
         cl_ord_ids=tuple(kept),
         tags={cl_ord_id: tuple(tags[cl_ord_id]) for cl_ord_id in kept},
-        total_candidates=len(order),
+        total_candidates=len(candidates),
     )
 
 
