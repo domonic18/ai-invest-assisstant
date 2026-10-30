@@ -155,6 +155,28 @@ class TestCreatePlan:
         session.add.assert_not_called()
 
     @pytest.mark.asyncio
+    async def test_revives_failed_plan(self) -> None:
+        # failed = 已触发但委托撤/拒未成交，无持仓、不构成重复执行；
+        # 重立走同一行的 active 复活路径（唯一约束防重复行）
+        existing = _plan_row("failed")
+        session = _session_with_scalars(["600000", existing])
+        plan = await agent_plan_ops.create_plan(
+            session,
+            _AK,
+            plan_date=_PLAN_DATE,
+            stock_code="600000",
+            plan_type="sell",
+            strategy="止盈离场",
+            stop_loss=9.5,
+            position_pct=10,
+            basis="依据",
+            target_price=11.0,
+        )
+        assert plan is existing
+        assert plan.status == "active"
+        session.add.assert_not_called()
+
+    @pytest.mark.asyncio
     async def test_rejects_triggered_plan(self) -> None:
         session = _session_with_scalars(["600000", _plan_row("triggered")])
         with pytest.raises(BadRequestError, match="triggered"):

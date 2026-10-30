@@ -224,3 +224,27 @@ class TestNewsAiScoreCollector:
         ):
             result = await collector.run()
         assert result.status.value == "failed"
+
+
+@pytest.mark.unit
+class TestUpsertScoresDedupe:
+    """同批内重复 (source, item_id) 先归并再 INSERT，避免 CardinalityViolation。"""
+
+    async def test_dedupes_keeping_last(self) -> None:
+        from app.repositories.news.ai_score_repository import upsert_scores
+
+        session = MagicMock()
+        session.execute = AsyncMock()
+        rows = [
+            {"source": "cls_telegraph", "item_id": "1", "score": 10, "score_detail": None},
+            {"source": "cls_telegraph", "item_id": "2", "score": 20, "score_detail": None},
+            {"source": "cls_telegraph", "item_id": "1", "score": 90, "score_detail": None},
+        ]
+        with patch(
+            "app.repositories.news.ai_score_repository.pg_insert"
+        ) as mock_insert:
+            wrote = await upsert_scores(session, rows)
+
+        inserted = mock_insert.return_value.values.call_args.args[0]
+        assert wrote == 2
+        assert {r["item_id"]: r["score"] for r in inserted} == {"1": 90, "2": 20}

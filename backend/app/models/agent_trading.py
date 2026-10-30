@@ -68,8 +68,9 @@ class AgentStockSelection(Base):
 class AgentTradePlan(Base):
     """交易 Agent 每日交易计划（盘中条件触发执行的真相源）。
 
-    状态机：active → triggered（已触发下单）→ executed / expired（当日未触发）
-    / cancelled（人工取消）/ invalid（首 tick 体检判定的结构性脱锚死单）。
+    状态机：active → triggered（已触发下单）→ executed（已成交）/ failed
+    （委托未成交：撤单/拒单）/ expired（当日未触发）/ cancelled（人工取消）
+    / invalid（首 tick 体检判定的结构性脱锚死单）。
     """
 
     __tablename__ = "agent_trade_plan"

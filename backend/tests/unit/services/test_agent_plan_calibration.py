@@ -21,6 +21,8 @@ from app.services.trading.agent_plan_schemas import (
 )
 
 _DATE = date(2026, 9, 30)
+# 生效计划集生成日（T-1 盘后）：校准消费它，新增计划也落回该日
+_PLAN_SET_DATE = date(2026, 9, 29)
 
 
 def _plan(**overrides: object) -> SimpleNamespace:
@@ -80,10 +82,11 @@ def _session(
     plans: list | None = None,
     observations: list | None = None,
 ) -> MagicMock:
-    """Mock 会话：scalar 按序返回（幂等计数/标的存在性）；scalars 按调用序
-    弹出结果集（第一次=活跃计划查询，第二次=当日观测查询），耗尽回空。"""
+    """Mock 会话：scalar 按序返回（幂等计数/生效计划集日期/标的存在性）；
+    scalars 按调用序弹出结果集（第一次=活跃计划查询，第二次=当日观测查询），
+    耗尽回空。"""
     session = MagicMock()
-    session.scalar = AsyncMock(side_effect=scalar_values or [0])
+    session.scalar = AsyncMock(side_effect=scalar_values or [0, _DATE])
     result_queue = [plans or [], observations or []]
 
     def _scalars(*args: object, **kwargs: object) -> SimpleNamespace:
@@ -175,20 +178,32 @@ class TestRunCalibration:
         session.commit.assert_not_awaited()
 
     async def test_no_active_plans_skipped(self) -> None:
-        session = _session(scalar_values=[0], plans=[])
+        session = _session(scalar_values=[0, _DATE], plans=[])
         with (
             patch.object(cal, "redis_lock", _lock()),
             patch.object(cal, "_run_llm", AsyncMock()) as llm_mock,
         ):
             summary = await cal.run_calibration(session, _agent(), _DATE, "1320", quotes={})
-        assert summary["skipped_reason"] == "无当日活跃计划"
+        assert summary["skipped_reason"] == "生效计划集无活跃计划"
         llm_mock.assert_not_awaited()
+
+    async def test_no_plan_set_skipped(self) -> None:
+        """从未生成过计划（无 ≤ trade_date 的计划行）→ 直接跳过，不查活跃计划。"""
+        session = _session(scalar_values=[0, None])
+        with (
+            patch.object(cal, "redis_lock", _lock()),
+            patch.object(cal, "_run_llm", AsyncMock()) as llm_mock,
+        ):
+            summary = await cal.run_calibration(session, _agent(), _DATE, "1020", quotes={})
+        assert summary["skipped_reason"] == "无生效计划集"
+        llm_mock.assert_not_awaited()
+        session.scalars.assert_not_awaited()
 
     async def test_shadow_records_without_mutating_plans(self) -> None:
         # 同窗口一码一单（uq 约束）：三计划三标的分别 maintain/adjust/cancel
         plan = _plan()
         plans = [plan, _plan(id=2, stock_code="000001"), _plan(id=3, stock_code="600519")]
-        session = _session(scalar_values=[0], plans=plans)
+        session = _session(scalar_values=[0, _DATE], plans=plans)
         items = [
             _item(action="maintain"),
             _item(stock_code="000001", action="adjust", new_stop_loss=9.3),
@@ -214,7 +229,7 @@ class TestRunCalibration:
 
     async def test_active_adjust_bumps_version(self) -> None:
         plan = _plan()
-        session = _session(scalar_values=[0], plans=[plan])
+        session = _session(scalar_values=[0, _DATE], plans=[plan])
         items = [_item(action="adjust", new_buy_zone_low=9.6, new_stop_loss=9.2)]
         with (
             patch.object(cal, "redis_lock", _lock()),
@@ -233,7 +248,7 @@ class TestRunCalibration:
 
     async def test_active_cancel_marks_cancelled(self) -> None:
         plan = _plan()
-        session = _session(scalar_values=[0], plans=[plan])
+        session = _session(scalar_values=[0, _DATE], plans=[plan])
         with (
             patch.object(cal, "redis_lock", _lock()),
             patch.object(cal, "_run_llm", AsyncMock(return_value=_content([_item(action="cancel")]))),
@@ -245,7 +260,11 @@ class TestRunCalibration:
         assert plan.status == "cancelled"
 
     async def test_active_add_creates_new_plan(self) -> None:
-        session = _session(scalar_values=[0, "600000"], plans=[_plan()])
+        # 计划集生成于 T-1：新增计划须落回该日（tick 才消费得到）
+        session = _session(
+            scalar_values=[0, _PLAN_SET_DATE, "600000"],
+            plans=[_plan(plan_date=_PLAN_SET_DATE)],
+        )
         items = [
             _item(
                 action="add",
@@ -279,13 +298,15 @@ class TestRunCalibration:
         new_plan = next(r for r in added if isinstance(r, cal.AgentTradePlan))
         assert new_plan.stock_code == "000001"
         assert new_plan.status == "active"
+        assert new_plan.plan_date == _PLAN_SET_DATE  # 写入生效计划集日期
         assert "早盘校准" not in new_plan.basis  # 1320 = 午盘校准
         assert "午盘校准" in new_plan.basis
+        assert added[-1].plan_date == _DATE  # 修正单台账仍记窗口交易日
         assert added[-1].new_plan_id == 99
 
     async def test_adjust_without_new_values_rejected(self) -> None:
         plan = _plan()
-        session = _session(scalar_values=[0], plans=[plan])
+        session = _session(scalar_values=[0, _DATE], plans=[plan])
         items = [_item(action="adjust", reason="空调整")]
         with (
             patch.object(cal, "redis_lock", _lock()),
@@ -306,7 +327,7 @@ class TestRunCalibration:
         价位形状：下修区间 8.2~8.6 后 1.3×上沿=11.18 < 现价 14.0，追高体检命中。
         """
         plan = _plan(buy_zone_low=Decimal("12.0"), buy_zone_high=Decimal("12.5"), stop_loss=Decimal("11.5"))
-        session = _session(scalar_values=[0], plans=[plan])
+        session = _session(scalar_values=[0, _DATE], plans=[plan])
         items = [
             _item(
                 action="adjust",
@@ -327,7 +348,7 @@ class TestRunCalibration:
         assert "死单体检" in row.reject_reason
 
     async def test_add_over_position_cap_rejected(self) -> None:
-        session = _session(scalar_values=[0, "600000"], plans=[_plan()])
+        session = _session(scalar_values=[0, _DATE, "600000"], plans=[_plan()])
         items = [
             _item(
                 action="add",
@@ -350,7 +371,7 @@ class TestRunCalibration:
         assert "超单票上限" in row.reject_reason
 
     async def test_add_unknown_code_rejected(self) -> None:
-        session = _session(scalar_values=[0, None], plans=[_plan()])
+        session = _session(scalar_values=[0, _DATE, None], plans=[_plan()])
         items = [
             _item(
                 action="add",
@@ -375,7 +396,7 @@ class TestRunCalibration:
 
     async def test_duplicate_code_second_rejected(self) -> None:
         plan = _plan()
-        session = _session(scalar_values=[0], plans=[plan])
+        session = _session(scalar_values=[0, _DATE], plans=[plan])
         items = [
             _item(action="adjust", new_stop_loss=9.3),
             _item(action="cancel"),
@@ -393,7 +414,7 @@ class TestRunCalibration:
         assert [row.status for row in rows] == ["applied", "rejected"]
 
     async def test_amendment_for_missing_plan_rejected(self) -> None:
-        session = _session(scalar_values=[0], plans=[_plan(stock_code="600000")])
+        session = _session(scalar_values=[0, _DATE], plans=[_plan(stock_code="600000")])
         items = [_item(action="cancel", stock_code="000001")]
         with (
             patch.object(cal, "redis_lock", _lock()),
@@ -404,7 +425,7 @@ class TestRunCalibration:
             )
         assert summary["rejected"] == 1
         row = session.add.call_args.args[0]
-        assert "未找到当日活跃计划" in row.reject_reason
+        assert "未找到生效计划" in row.reject_reason
 
 
 @pytest.mark.unit

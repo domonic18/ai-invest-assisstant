@@ -7,7 +7,8 @@
  * T 日制定、T+1 盘中执行，打开即正在执行/最新生成的那份）；卡片头日期轴
  * 标注制定→执行对应关系；选中无计划的日期时按 executingPlanDate 引导跳回
  * 正在执行的那份。状态分色：active 待触发 / triggered 已触发 / executed
- * 已成交 / expired 已失效 / cancelled 已取消；active 计划可人工取消。标的
+ * 已成交 / failed 未成交（委托撤/拒）/ expired 已失效 / cancelled 已取消 /
+ * invalid 计划失效；active 计划可人工取消。标的
  * 可点跳个股详情；sell 为持仓止损/止盈条件单（同股可与买入计划并存），
  * buy 按截至计划日持仓标注建仓/增持（heldVolume）。计划卡尾部展示当日
  * 盘中校准修正单历史（§11.5，amendments 按 planId/newPlanId 归组）。
@@ -34,6 +35,7 @@ const STATUS_META: Record<ApiTradingAgentPlan['status'], { label: string; color:
   active: { label: '待触发', color: 'processing' },
   triggered: { label: '已触发', color: 'warning' },
   executed: { label: '已成交', color: 'success' },
+  failed: { label: '未成交', color: 'warning' },
   expired: { label: '已失效', color: 'default' },
   cancelled: { label: '已取消', color: 'default' },
   invalid: { label: '计划失效', color: 'error' },
