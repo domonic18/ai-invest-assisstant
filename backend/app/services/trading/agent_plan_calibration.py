@@ -121,7 +121,8 @@ async def run_calibration(
     Args:
         session: 数据库会话（服务层拥有事务边界，成功后 commit）。
         agent: 注册行（calibration_mode 决定生效路径）。
-        trade_date: 基准交易日（只对当日 active 计划表态）。
+        trade_date: 基准交易日（只对生效计划集表态：各 Agent ``plan_date``
+            ≤ trade_date 的最近一份——计划 T-1 盘后生成、T 日盘中消费）。
         window: 校准窗口 ``1020``/``1320``。
         quotes: 计划标的实时行情（``fetch_sina_quotes`` 形状，采集器预取）。
 
@@ -164,13 +165,29 @@ async def _run_locked(
     if existing:
         return {"cached": True, "window": window, "total": 0}
 
+    # 计划 T-1 盘后生成、T 日盘中消费：校准对象是「≤ trade_date 的最近一份」
+    # 计划集，与盘中 tick 的消费口径一致（精确匹配当日会永远查空）。
+    plan_set_date = await session.scalar(
+        select(func.max(AgentTradePlan.plan_date)).where(
+            AgentTradePlan.agent_key == agent.agent_key,
+            AgentTradePlan.plan_date <= trade_date,
+        )
+    )
+    if plan_set_date is None:
+        return {
+            "cached": False,
+            "window": window,
+            "total": 0,
+            "skipped_reason": "无生效计划集",
+        }
+
     plans = list(
         (
             await session.scalars(
                 select(AgentTradePlan)
                 .where(
                     AgentTradePlan.agent_key == agent.agent_key,
-                    AgentTradePlan.plan_date == trade_date,
+                    AgentTradePlan.plan_date == plan_set_date,
                     AgentTradePlan.status == "active",
                 )
                 .order_by(AgentTradePlan.id)
@@ -182,7 +199,7 @@ async def _run_locked(
             "cached": False,
             "window": window,
             "total": 0,
-            "skipped_reason": "无当日活跃计划",
+            "skipped_reason": "生效计划集无活跃计划",
         }
 
     report = await build_observation_report(session, agent.agent_key, trade_date)
@@ -192,6 +209,7 @@ async def _run_locked(
     )
     summary = await _apply_amendments(
         session, agent, trade_date, window, content, quotes, plans,
+        plan_set_date=plan_set_date,
         model_name=meta_out.get("model_name"),
     )
     await session.commit()
@@ -409,9 +427,15 @@ async def _apply_amendments(
     quotes: dict[str, dict[str, Any]],
     plans: list[AgentTradePlan],
     *,
+    plan_set_date: date,
     model_name: str | None,
 ) -> dict[str, Any]:
-    """逐条硬校验 + 按 calibration_mode 生效；全量留痕（含被拒修正单）。"""
+    """逐条硬校验 + 按 calibration_mode 生效；全量留痕（含被拒修正单）。
+
+    ``trade_date`` 是校准窗口的交易日（修正单台账口径）；``plan_set_date``
+    是生效计划集的生成日（add 新建计划须落在该日，才能被 tick 消费且不打乱
+    生效日期解析）。
+    """
     active = agent.calibration_mode == "active"
     plans_by_code: dict[str, AgentTradePlan] = {}
     for p in plans:
@@ -445,7 +469,7 @@ async def _apply_amendments(
         elif item.action == "add":
             reject = await _validate_add(session, agent, item, price)
         elif plan is None:
-            reject = "未找到当日活跃计划"
+            reject = "未找到生效计划"
         elif item.action == "adjust":
             reject = _validate_adjust(plan, item, price)
         # maintain / cancel 无需价位校验
@@ -491,7 +515,7 @@ async def _apply_amendments(
         elif item.action == "add":
             new_plan = AgentTradePlan(
                 agent_key=agent.agent_key,
-                plan_date=trade_date,
+                plan_date=plan_set_date,
                 stock_code=item.stock_code,
                 plan_type=item.plan_type or "buy",
                 strategy=(item.strategy or item.reason)[:200],

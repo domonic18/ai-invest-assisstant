@@ -485,7 +485,7 @@ class TestRunTick:
         answers: dict | None = None,
         ask_error: Exception | None = None,
     ) -> tuple[dict[str, int], AsyncMock]:
-        """shadow 语义 run_tick：判断/账户/下单全部 mock，返回 (counters, order_mock)。"""
+        """shadow 语义 run_tick：判断/账户/下单/对账全部 mock，返回 (counters, order_mock)。"""
         with (
             patch.object(
                 svc.agent_registry, "get_intraday_agents", new=AsyncMock(return_value=[agent])
@@ -500,6 +500,7 @@ class TestRunTick:
                 "resolve_agent_account",
                 AsyncMock(return_value=SimpleNamespace()),
             ),
+            patch.object(svc, "_reconcile_pending_orders", AsyncMock()),
             patch.object(exe, "execute_agent_order", AsyncMock()) as order_mock,
         ):
             counters = await svc.run_tick(
@@ -567,6 +568,7 @@ class TestRunTick:
         with (
             patch.object(svc.agent_registry, "get_intraday_agents", new=AsyncMock(return_value=[_agent("active")])),
             patch.object(svc, "_effective_plan_dates", AsyncMock(return_value={"short-line": _DATE})),
+            patch.object(svc, "_reconcile_pending_orders", AsyncMock()),
             patch.object(svc, "ask_decision", AsyncMock(return_value=_response({"1:action": _choice(1, CHOICE_ACTION_EXECUTE, 0.90)}))),
             patch.object(exe.account_service, "resolve_agent_account", AsyncMock(return_value=account)),
             patch.object(exe, "_buy_volume", AsyncMock(return_value=100)),
@@ -596,6 +598,7 @@ class TestRunTick:
         session = _session(scalars_result=plans)
         with (
             patch.object(svc.agent_registry, "get_intraday_agents", new=AsyncMock(return_value=[_agent("active")])),
+            patch.object(svc, "_reconcile_pending_orders", AsyncMock()),
             patch.object(svc, "ask_decision", AsyncMock(return_value=_response({"1:action": _choice(1, CHOICE_ACTION_EXECUTE, 0.90)}))),
             patch.object(exe.account_service, "resolve_agent_account", AsyncMock(return_value=SimpleNamespace())),
             patch.object(exe, "_buy_volume", AsyncMock(return_value=100)),
@@ -616,6 +619,22 @@ class TestRunTick:
         assert counters["candidates"] == 0
         assert _observations(session) == []
 
+    async def test_reconcile_runs_on_quiet_tick(self) -> None:
+        """评判集为空（无行情）也要对账：成交终态回填不依赖本拍评判。"""
+        session = _session(scalars_result=[])
+        reconcile_mock = AsyncMock()
+        with (
+            patch.object(
+                svc.agent_registry, "get_intraday_agents", new=AsyncMock(return_value=[_agent("active")])
+            ),
+            patch.object(svc, "_reconcile_pending_orders", reconcile_mock),
+        ):
+            counters = await svc.run_tick(
+                session, trade_date=_DATE, now=_NOW, quotes={}
+            )
+        reconcile_mock.assert_awaited_once()
+        assert counters["evaluated"] == 0
+
     async def test_structurally_detached_plan_invalidated(self) -> None:
         """死单体检命中：置 invalid 终态 + plan_invalid 观测留痕，不进评判不下单。"""
         plans = [_plan(id=1)]
@@ -623,6 +642,7 @@ class TestRunTick:
         with (
             patch.object(svc.agent_registry, "get_intraday_agents", new=AsyncMock(return_value=[_agent("shadow")])),
             patch.object(svc, "_effective_plan_dates", AsyncMock(return_value={"short-line": _DATE})),
+            patch.object(svc, "_reconcile_pending_orders", AsyncMock()),
             patch.object(svc, "ask_decision", AsyncMock(return_value=_response({}))) as ask_mock,
             patch.object(exe.account_service, "resolve_agent_account", AsyncMock(return_value=SimpleNamespace())),
             patch.object(exe, "execute_agent_order", AsyncMock()) as order_mock,
@@ -811,8 +831,8 @@ class TestReconcilePendingOrders:
             await exe._reconcile_pending_orders(session, agent)
         sync_mock.assert_awaited_once_with(session, account)
 
-    async def test_skips_without_pending(self) -> None:
-        """全部委托已终态 → 不触发同步（省锁与柜台往返）。"""
+    async def test_skips_sync_without_pending_but_backfills(self) -> None:
+        """全部委托已终态 → 不触发同步（省锁与柜台往返），但仍回填计划 executed。"""
         session = _session()
         session.scalar = AsyncMock(return_value=0)
         with (
@@ -824,6 +844,43 @@ class TestReconcilePendingOrders:
         ):
             await exe._reconcile_pending_orders(session, SimpleNamespace(agent_key="short-line"))
         sync_mock.assert_not_awaited()
+        session.execute.assert_awaited_once()  # 计划状态回填 UPDATE
+        session.commit.assert_awaited_once()
+
+    async def test_backfill_update_targets_executed_from_filled_orders(self) -> None:
+        """回填 SQL：triggered 计划按已成交（3/4）委托迁移到 executed。"""
+        from sqlalchemy.dialects import postgresql
+
+        session = _session()
+        session.scalar = AsyncMock(return_value=0)
+        with patch.object(
+            exe, "_account_or_none", AsyncMock(return_value=SimpleNamespace(id=4))
+        ):
+            await exe._reconcile_pending_orders(
+                session, SimpleNamespace(agent_key="short-line")
+            )
+        stmt = session.execute.await_args.args[0]
+        sql = str(
+            stmt.compile(
+                dialect=postgresql.dialect(), compile_kwargs={"literal_binds": True}
+            )
+        )
+        assert "UPDATE agent_trade_plan" in sql
+        assert "'executed'" in sql
+        assert "paper_trade_order" in sql
+        assert "(3, 4)" in sql
+
+    async def test_backfill_no_op_does_not_commit(self) -> None:
+        """无 triggered 计划可迁移 → 不空提交。"""
+        session = _session(rowcount=0)
+        session.scalar = AsyncMock(return_value=0)
+        with patch.object(
+            exe, "_account_or_none", AsyncMock(return_value=SimpleNamespace(id=4))
+        ):
+            await exe._reconcile_pending_orders(
+                session, SimpleNamespace(agent_key="short-line")
+            )
+        session.commit.assert_not_awaited()
 
     async def test_skips_without_account(self) -> None:
         """未绑定账户 → 不查询不触发。"""
