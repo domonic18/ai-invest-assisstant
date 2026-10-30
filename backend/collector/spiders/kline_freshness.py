@@ -6,6 +6,8 @@
 1. 以 ``latest_trading_day()`` 为期望日，逐个核对自选股/指数/ETF/A50 是否有
    对应日 K（与采集集同源，符号清单直接复用各采集器的单一真相源）；
 2. 缺失则重跑对应采集任务（``symbols`` 收窄到缺失标的，重跑即自愈）并复验；
+   自选股按 A 股/港股分派到 ``watchlist-kline-daily`` / ``hk-kline``（港股当日
+   bar 发布滞后，早于就绪时刻记预期迟到，末档严格校验）；
 3. 数据本已齐为 SKIPPED（良性），重跑后仍缺失为 PARTIAL 并在 errors 中列明
    仍缺的代码（如停牌股会持续 PARTIAL，属于正确的可见信号）。
 
@@ -22,10 +24,14 @@ from app.repositories.market.kline_repository import has_daily_bar
 from collector.core.base import BaseCollector, CollectResult, CollectStatus
 from collector.core.calendar import latest_trading_day
 from collector.spiders.sina_etf_kline import SinaEtfKlineCollector
+from collector.spiders.sina_kline import SinaKlineCollector, _fetch_watchlist_codes
 
 A50_CODE = "CN00Y"
 # 当日 bar 收盘后存在发布滞后，17:00 前不校验「期望日=今天」的缺口
 _PUBLISH_READY_TIME = time(17, 0)
+# 任务级「当日 bar 就绪时刻」：早于该时刻的缺口属预期迟到（发布滞后），
+# 不自愈也不升 PARTIAL。港股当日 bar 东财约 18:55 才落地，末档（21:00）起严格校验
+_GROUP_READY_TIME: dict[str, time] = {"hk-kline": time(19, 30)}
 # 已知晚到标的：源端当日 bar 常晚于 18:30 运行档落地（沪深300ETF 稳定约
 # 21:30、深成指/创业板指偶发 18:30 后），末档（≥21:00）恢复严格校验
 _LATE_READY_TIME = time(21, 0)
@@ -66,13 +72,19 @@ class KlineFreshnessCollector(BaseCollector):
             )
 
         watchlist = await self._watchlist_codes()
+        # 自选股含港股（5 位码）：港股日 K 由 hk-kline 采集，新浪 A 股 K 线采集器
+        # 会直接跳过非 A 股代码，混入 watchlist-kline-daily 会永远补不上
+        a_share_codes = [code for code in watchlist if SinaKlineCollector._is_a_share(code)]
+        hk_codes = [code for code in watchlist if not SinaKlineCollector._is_a_share(code)]
         groups: list[tuple[str, tuple[str, ...]]] = [
-            ("watchlist-kline-daily", tuple(watchlist)),
+            ("watchlist-kline-daily", tuple(a_share_codes)),
+            ("hk-kline", tuple(hk_codes)),
             *_CHECK_GROUPS,
         ]
 
         healed: list[str] = []
         still_missing: list[str] = []
+        expected_late: list[str] = []
         metadata: dict[str, Any] = {"trade_date": trade_date.isoformat(), "checked": {}}
 
         async with AsyncSessionLocal() as session:
@@ -93,6 +105,11 @@ class KlineFreshnessCollector(BaseCollector):
             }
             if not missing:
                 continue
+            ready_at = _GROUP_READY_TIME.get(task_name)
+            if ready_at is not None and now_cn().time() < ready_at:
+                # 当日 bar 尚未发布：记预期迟到，不自愈也不升 PARTIAL
+                expected_late.extend(missing)
+                continue
             await self._rerun(task_name, missing)
             async with AsyncSessionLocal() as session:
                 unresolved = [
@@ -103,16 +120,18 @@ class KlineFreshnessCollector(BaseCollector):
             healed.extend(code for code in missing if code not in unresolved)
             still_missing.extend(unresolved)
 
-        expected_late = [
+        known_late = [
             code
             for code in still_missing
             if code in _KNOWN_LATE_CODES and now_cn().time() < _LATE_READY_TIME
         ]
+        if known_late:
+            expected_late.extend(known_late)
+            still_missing = [
+                code for code in still_missing if code not in known_late
+            ]
         if expected_late:
             metadata["expected_late"] = expected_late
-            still_missing = [
-                code for code in still_missing if code not in expected_late
-            ]
 
         if still_missing:
             status = CollectStatus.PARTIAL
@@ -130,8 +149,6 @@ class KlineFreshnessCollector(BaseCollector):
 
     @staticmethod
     async def _watchlist_codes() -> list[str]:
-        from collector.spiders.sina_kline import _fetch_watchlist_codes
-
         return await _fetch_watchlist_codes()
 
     @staticmethod

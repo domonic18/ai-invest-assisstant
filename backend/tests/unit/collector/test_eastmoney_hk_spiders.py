@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, patch
 
 import pandas as pd
 import pytest
+from curl_cffi.requests import exceptions as cffi_exceptions
 
 from app.schemas.user import WatchlistItemCreate
 from collector.spiders.eastmoney_hk_kline import EastmoneyHkKlineCollector
@@ -64,11 +65,43 @@ class TestEastmoneyHkStockListCollector:
             {"total": 150, "diff": full_page},
             {"total": 150, "diff": full_page[:50]},
         ]
-        with patch.object(collector, "_request_page", side_effect=pages) as mock_page:
+        with (
+            patch.object(collector, "_request_page", side_effect=pages) as mock_page,
+            patch("collector.spiders.eastmoney_hk_stock_list.time.sleep"),
+        ):
             rows = collector._fetch_all()
 
         assert len(rows) == 150
         assert mock_page.call_count == 2
+
+    async def test_request_page_retries_then_succeeds(self) -> None:
+        collector = EastmoneyHkStockListCollector(config={"source": "eastmoney"})
+        ok = type("R", (), {"json": lambda self: {"data": {"total": 1, "diff": []}}})()
+        with (
+            patch(
+                "collector.spiders.eastmoney_hk_stock_list.eastmoney_get_chrome",
+                side_effect=[cffi_exceptions.ConnectionError("curl 56"), ok],
+            ) as mock_get,
+            patch("collector.spiders.eastmoney_hk_stock_list.time.sleep"),
+        ):
+            data = collector._request_page({"pn": 1})
+
+        assert data == {"total": 1, "diff": []}
+        assert mock_get.call_count == 2
+
+    async def test_request_page_raises_after_retries(self) -> None:
+        collector = EastmoneyHkStockListCollector(config={"source": "eastmoney"})
+        with (
+            patch(
+                "collector.spiders.eastmoney_hk_stock_list.eastmoney_get_chrome",
+                side_effect=cffi_exceptions.ConnectionError("curl 56"),
+            ) as mock_get,
+            patch("collector.spiders.eastmoney_hk_stock_list.time.sleep"),
+            pytest.raises(cffi_exceptions.ConnectionError),
+        ):
+            collector._request_page({"pn": 1})
+
+        assert mock_get.call_count == 3
 
     async def test_transform_validate(self) -> None:
         collector = EastmoneyHkStockListCollector(config={"source": "eastmoney"})
