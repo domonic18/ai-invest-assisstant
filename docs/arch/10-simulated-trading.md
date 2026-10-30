@@ -116,9 +116,9 @@ paper-trade sidecar (:8020，无状态代理，不持有凭证)
 执行三态由 `trading_agent.intraday_exec_mode` 控制：`off` 停用、`shadow` 全链路判断
 但不下单、`active` 真实下单。下单走
 `agent_trade_service.place(context='scheduled', plan_id=...)`，计划转 `triggered` 并记
-`triggered_cl_ord_id`；委托成交终态由每 tick 的未结对账回填（有未结委托即触发单账户
-即时同步），已成交委托关联的计划随即转 `executed`——静默 tick 同样对账，16:00 盘后
-全量同步仍是权威对账。**14:50-15:00 尾盘强检**：
+`triggered_cl_ord_id`；委托终态由每 tick 的未结对账回填（有未结委托即触发单账户
+即时同步）：已成交（已成/部撤）→ `executed`，撤单/拒单未成交 → `failed`——静默 tick
+同样对账，16:00 盘后全量同步仍是权威对账。**14:50-15:00 尾盘强检**：
 所有持仓对止损线纯 L0 复检，当日未触发计划置 `expired`。
 
 ## 8. 盘中计划校准（慢思考介入）
