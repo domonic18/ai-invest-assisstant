@@ -107,6 +107,29 @@ async def test_default_config_unique(session: AsyncSession) -> None:
     assert defaults[0].id == second.id
 
 
+async def test_list_configs_tolerates_undecryptable_key(session: AsyncSession) -> None:
+    """密钥轮换后旧密文不可解密时列表降级展示，不得整页 500。"""
+    service = LLMConfigService(session)
+    created = await service.create_config(
+        LLMConfigCreate(
+            name="Rotated",
+            provider="openai",
+            base_url="https://api.openai.com/v1",
+            api_key="sk-rotated",
+            model_name="gpt-4o",
+        )
+    )
+    row = await session.get(LLMConfig, created.id)
+    assert row is not None
+    row.api_key_encrypted = "not-a-valid-fernet-token"
+    await session.commit()
+
+    configs = await service.list_configs()
+    assert [c.api_key_masked for c in configs if c.id == created.id] == [
+        "[无法解密，请重新录入]"
+    ]
+
+
 async def test_resolve_default_raises_when_missing(session: AsyncSession) -> None:
     with pytest.raises(LLMConfigNotConfiguredError):
         await resolve_default_llm(session)
