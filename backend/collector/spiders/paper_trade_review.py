@@ -5,7 +5,7 @@ paper_trade_review_1610 沿用），循环全部 active Agent 按注册行 revie
 生成复盘（D28）：daily=每交易日日度 + 周期末加发周度 / 月末加发月度；
 weekly=仅周期末生成周度；monthly=仅月末生成月度——非 due 记跳过明细。
 单 Agent 异常隔离记入明细，聚合成一条 CollectResult：全跳过 → SKIPPED、
-部分成功 → PARTIAL、全失败 → FAILED；全部 Agent 输入未就绪
+部分成功 → PARTIAL、全失败 → FAILED；当日应生成的 Agent 全部输入未就绪
 （``ReviewInputDataNotReadyError``）不吞掉，交由 Celery 退避重试。
 
 按需通道（B4）：params 带 ``agent_key`` 时只生成该 Agent 的指定 ``period``
@@ -42,6 +42,13 @@ def _coerce_trade_date(value: Any) -> date | None:
         except ValueError:
             return None
     return None
+
+
+def _is_soft_timeout(exc: BaseException) -> bool:
+    """Celery 软超时须向上传播（延迟导入避开 worker 入口的导入环）。"""
+    from celery.exceptions import SoftTimeLimitExceeded
+
+    return isinstance(exc, SoftTimeLimitExceeded)
 
 
 class PaperTradeReviewCollector(BaseCollector):
@@ -274,7 +281,9 @@ class PaperTradeReviewCollector(BaseCollector):
 
             for idx, period in enumerate(periods):
                 # 首周期（day/week/month）异常向上传播（未就绪退避重试依赖）；
-                # 加发周期失败不拖垮首周期结果，隔离记入 metadata。
+                # 加发周期失败不拖垮首周期结果，隔离记入 metadata。软超时例外
+                # ——必须上抛由 run_collector_task 统一收尾，否则会拖到硬限被
+                # SIGKILL 且 collector_log 停留 running。
                 try:
                     result = await agent_review_service.generate_review(
                         session,
@@ -293,6 +302,10 @@ class PaperTradeReviewCollector(BaseCollector):
                     if idx == 0:
                         raise
                     metadata[period] = {"skipped": str(exc)}
+                except Exception as exc:  # noqa: BLE001
+                    if idx == 0 or _is_soft_timeout(exc):
+                        raise
+                    metadata[period] = {"error": str(exc)}
         return metadata
 
     async def run(self, **kwargs: Any) -> CollectResult:
@@ -330,6 +343,8 @@ class PaperTradeReviewCollector(BaseCollector):
         errors: list[str] = []
         details: dict[str, dict[str, Any]] = {}
         not_ready = 0
+        #: 当日应生成复盘的 Agent 数（非生成日的 Agent 不计入，避免重试门槛被稀释）
+        due = 0
         not_ready_reasons: list[str] = []
         for agent in agents:
             try:
@@ -343,6 +358,7 @@ class PaperTradeReviewCollector(BaseCollector):
                         f"{agent.agent_key}: {agent.review_cadence} 频复盘未到生成日，跳过"
                     )
                     continue
+                due += 1
                 details[agent.agent_key] = result
                 if any(
                     isinstance(v, dict) and v.get("no_target") for v in result.values()
@@ -351,7 +367,8 @@ class PaperTradeReviewCollector(BaseCollector):
                         f"{agent.agent_key}: 已执行复盘但无对象（空仓无持仓，已记录）"
                     )
             except ReviewInputDataNotReadyError as exc:
-                # 不吞掉：全部 Agent 未就绪时向 Celery 退避重试抛出。
+                # 不吞掉：应生成的 Agent 全部未就绪时向 Celery 退避重试抛出。
+                due += 1
                 not_ready += 1
                 reason = str(exc) or exc.default_message
                 if reason not in not_ready_reasons:
@@ -360,6 +377,8 @@ class PaperTradeReviewCollector(BaseCollector):
             except AgentAccountNotDesignatedError as exc:
                 lines.append(f"{agent.agent_key}: {exc}")
             except Exception as exc:  # noqa: BLE001
+                if _is_soft_timeout(exc):
+                    raise
                 errors.append(f"{agent.agent_key}: {exc}")
 
         # 新落库口径跨周期：任一周期 fresh 生成（非缓存命中）即计入
@@ -377,10 +396,10 @@ class PaperTradeReviewCollector(BaseCollector):
             status = CollectStatus.PARTIAL
         elif errors:
             status = CollectStatus.FAILED
-        elif not_ready == len(agents):
+        elif due and not_ready == due:
             detail = "；".join(not_ready_reasons) or "原因未知"
             raise ReviewInputDataNotReadyError(
-                f"全部 {len(agents)} 个交易 Agent 的复盘输入未就绪：{detail}"
+                f"全部 {due} 个应生成复盘的交易 Agent 输入未就绪：{detail}"
             )
         else:
             status = CollectStatus.SKIPPED

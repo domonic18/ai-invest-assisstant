@@ -409,6 +409,42 @@ class TestPaperTradeReviewCollector:
         assert "已执行复盘但无对象" in (result.message or "")
 
     @pytest.mark.asyncio
+    async def test_boost_unexpected_error_recorded_not_raised(self) -> None:
+        """加发周期非锁异常隔离：首周期结果保留，其余周期继续执行。"""
+
+        async def _generate(_session, _agent, *, period, **kwargs):
+            if period == "week":
+                raise RuntimeError("boom")
+            return _result()
+
+        patches = _patch_env(
+            generate=AsyncMock(side_effect=_generate), week_end=True, month_end=True
+        )
+        with _activate(patches):
+            result = await _collector().run()
+
+        assert result.status == CollectStatus.SUCCESS
+        agent_meta = result.metadata["agents"]["short-line"]
+        assert agent_meta["day"] == {"cached": False, "no_target": False}
+        assert agent_meta["week"] == {"error": "boom"}
+        assert agent_meta["month"] == {"cached": False, "no_target": False}
+
+    @pytest.mark.asyncio
+    async def test_boost_soft_timeout_propagates(self) -> None:
+        """软超时必须上抛（由 run_collector_task 统一收尾），不按加发周期隔离。"""
+        from celery.exceptions import SoftTimeLimitExceeded
+
+        async def _generate(_session, _agent, *, period, **kwargs):
+            if period == "week":
+                raise SoftTimeLimitExceeded()
+            return _result()
+
+        patches = _patch_env(generate=AsyncMock(side_effect=_generate), week_end=True)
+        with _activate(patches):
+            with pytest.raises(SoftTimeLimitExceeded):
+                await _collector().run()
+
+    @pytest.mark.asyncio
     async def test_boost_locked_is_recorded_not_raised(self) -> None:
         async def _generate(_session, _agent, *, period, **kwargs):
             if period == "month":
@@ -437,6 +473,46 @@ class TestPaperTradeReviewCollector:
                 ReviewInputDataNotReadyError, match="：2026-07-17 盘后同步"
             ):
                 await _collector().run()
+
+    @pytest.mark.asyncio
+    async def test_not_ready_gate_ignores_agents_not_due(self) -> None:
+        """混合 cadence：weekly 非生成日不参与门槛，daily 未就绪仍须抛错重试。
+
+        旧实现以 ``not_ready == len(agents)`` 判定，weekly 跳过使门槛被稀释，
+        daily 未就绪被降级为 SKIPPED，当日日度复盘永久丢失。
+        """
+
+        async def _generate(_session, agent, **kwargs):
+            if agent.agent_key == "long-line":
+                return _result()
+            raise ReviewInputDataNotReadyError("未就绪")
+
+        patches = _patch_env(
+            agents=[_agent("short-line"), _agent("long-line", "weekly")],
+            generate=AsyncMock(side_effect=_generate),
+            week_end=False,
+        )
+        with _activate(patches):
+            with pytest.raises(ReviewInputDataNotReadyError, match="1 个应生成复盘"):
+                await _collector().run()
+
+    @pytest.mark.asyncio
+    async def test_not_ready_with_due_agent_ok_is_partial(self) -> None:
+        """应生成 Agent 中部分未就绪 → PARTIAL，不整任务重试。"""
+
+        async def _generate(_session, agent, **kwargs):
+            if agent.agent_key == "m60":
+                raise ReviewInputDataNotReadyError("未就绪")
+            return _result()
+
+        patches = _patch_env(
+            agents=[_agent("short-line"), _agent("m60")],
+            generate=AsyncMock(side_effect=_generate),
+        )
+        with _activate(patches):
+            result = await _collector().run()
+
+        assert result.status == CollectStatus.PARTIAL
 
     @pytest.mark.asyncio
     async def test_not_ready_with_one_ready_agent_is_partial(self) -> None:

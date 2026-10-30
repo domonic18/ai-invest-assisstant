@@ -102,6 +102,24 @@ describe('ReviewCompareModal', () => {
     expect(screen.getAllByText('-').length).toBeGreaterThanOrEqual(2)
   })
 
+  it('对比后修改窗口 B，表头仍对应已对比的窗口（不随草稿漂移）', () => {
+    setup({
+      windowA: metrics(),
+      windowB: metrics(),
+      alignedTradingDays: 20,
+      note: '两侧窗口交易日数一致',
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /对\s*比/ }))
+    expect(screen.getByText('B · 月上期')).toBeInTheDocument()
+
+    fireEvent.mouseDown(screen.getAllByRole('combobox')[0])
+    fireEvent.click(screen.getByTitle('季'))
+
+    expect(screen.getByText('B · 月上期')).toBeInTheDocument()
+    expect(screen.queryByText('B · 季上期')).not.toBeInTheDocument()
+  })
+
   it('切换 B 周期为季、作用域为本期后按新窗口请求', () => {
     const { mutate } = setup()
 

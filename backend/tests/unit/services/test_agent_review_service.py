@@ -938,6 +938,24 @@ class TestMarketReviewOptional:
 
 @pytest.mark.unit
 class TestLegacyCacheCompat:
+    def test_contract_version_is_part_of_cache_key(self) -> None:
+        """契约版本进缓存键：升级后旧行失配重算，不再补空 sections 返回。"""
+        import hashlib
+
+        from app.services.trading.agent_review_content import REVIEW_CONTRACT_VERSION
+
+        raw = (
+            f"paper-trade-review:v{REVIEW_CONTRACT_VERSION}:short-line:7:day:"
+            "2026-07-01:2026-07-15"
+        )
+        expected = hashlib.sha256(raw.encode()).hexdigest()
+        assert (
+            agent_review_service._input_hash(
+                "short-line", 7, "day", date(2026, 7, 1), _TRADE_DATE
+            )
+            == expected
+        )
+
     def test_backfills_missing_d34_keys(self) -> None:
         """D34 前缓存行缺 market_context/methodology_check/no_target_reason：补空值可读。"""
         legacy = {
