@@ -259,10 +259,11 @@ async def create_plan(
 ) -> AgentTradePlan:
     """对话内制定交易计划（与 19:30 定时计划同表同状态机，批次 8 共同执行）。
 
-    active 行覆写字段；expired / cancelled 复活（会话内用户本人要求取消
-    再立是对话常态，定时路径的「人工 cancelled 不复活」保护不适用于此）；
-    triggered 拒绝改写（执行器已消费，改写破坏执行审计）。buy 必须带买点
-    区间，sell 必须带止盈价。
+    active 行覆写字段；expired / cancelled / failed 复活（会话内用户本人要求
+    取消再立是对话常态，定时路径的「人工 cancelled 不复活」保护不适用于此；
+    failed 是委托撤/拒未成交、无持仓，重立不构成重复执行）；triggered 拒绝
+    改写（执行器已消费，改写破坏执行审计）。buy 必须带买点区间，sell 必须
+    带止盈价。
     """
     if plan_type not in PLAN_TYPES:
         raise BadRequestError(f"plan_type 必须为 {'/'.join(PLAN_TYPES)}")
@@ -305,7 +306,7 @@ async def create_plan(
     plan.stop_loss = Decimal(str(stop_loss))
     plan.position_pct = Decimal(str(position_pct))
     plan.basis = basis
-    if plan.status in ("expired", "cancelled"):
+    if plan.status in ("expired", "cancelled", "failed"):
         plan.status = "active"
     await session.commit()
     await session.refresh(plan)

@@ -832,7 +832,7 @@ class TestReconcilePendingOrders:
         sync_mock.assert_awaited_once_with(session, account)
 
     async def test_skips_sync_without_pending_but_backfills(self) -> None:
-        """全部委托已终态 → 不触发同步（省锁与柜台往返），但仍回填计划 executed。"""
+        """全部委托已终态 → 不触发同步（省锁与柜台往返），但仍回填计划状态。"""
         session = _session()
         session.scalar = AsyncMock(return_value=0)
         with (
@@ -844,13 +844,26 @@ class TestReconcilePendingOrders:
         ):
             await exe._reconcile_pending_orders(session, SimpleNamespace(agent_key="short-line"))
         sync_mock.assert_not_awaited()
-        session.execute.assert_awaited_once()  # 计划状态回填 UPDATE
+        # 两条回填 UPDATE：已成/部撤 → executed、已撤/已拒 → failed
+        assert session.execute.await_count == 2
         session.commit.assert_awaited_once()
 
-    async def test_backfill_update_targets_executed_from_filled_orders(self) -> None:
-        """回填 SQL：triggered 计划按已成交（3/4）委托迁移到 executed。"""
+    def _compiled_sqls(self, session: MagicMock) -> list[str]:
         from sqlalchemy.dialects import postgresql
 
+        return [
+            str(
+                call.args[0].compile(
+                    dialect=postgresql.dialect(), compile_kwargs={"literal_binds": True}
+                )
+            )
+            for call in session.execute.await_args_list
+        ]
+
+    async def test_backfill_updates_executed_and_failed_from_order_terminals(
+        self,
+    ) -> None:
+        """回填 SQL：已成/部撤（3/4）→ executed；已撤/已拒（5/8）→ failed。"""
         session = _session()
         session.scalar = AsyncMock(return_value=0)
         with patch.object(
@@ -859,16 +872,15 @@ class TestReconcilePendingOrders:
             await exe._reconcile_pending_orders(
                 session, SimpleNamespace(agent_key="short-line")
             )
-        stmt = session.execute.await_args.args[0]
-        sql = str(
-            stmt.compile(
-                dialect=postgresql.dialect(), compile_kwargs={"literal_binds": True}
-            )
-        )
-        assert "UPDATE agent_trade_plan" in sql
-        assert "'executed'" in sql
-        assert "paper_trade_order" in sql
-        assert "(3, 4)" in sql
+        executed_sql, failed_sql = self._compiled_sqls(session)
+        for sql in (executed_sql, failed_sql):
+            assert "UPDATE agent_trade_plan" in sql
+            assert "paper_trade_order" in sql
+            assert "'triggered'" in sql
+        assert "'executed'" in executed_sql
+        assert "(3, 4)" in executed_sql
+        assert "'failed'" in failed_sql
+        assert "(5, 8)" in failed_sql
 
     async def test_backfill_no_op_does_not_commit(self) -> None:
         """无 triggered 计划可迁移 → 不空提交。"""
@@ -880,6 +892,7 @@ class TestReconcilePendingOrders:
             await exe._reconcile_pending_orders(
                 session, SimpleNamespace(agent_key="short-line")
             )
+        assert session.execute.await_count == 2
         session.commit.assert_not_awaited()
 
     async def test_skips_without_account(self) -> None:

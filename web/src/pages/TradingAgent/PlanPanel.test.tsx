@@ -120,6 +120,12 @@ describe('PlanPanel', () => {
     expect(screen.queryByText(/制定的计划 → 查看/)).not.toBeInTheDocument()
   })
 
+  it('labels triggered-but-unfilled plans as 未成交', () => {
+    setup(data({ plans: [plan({ status: 'failed' })] }))
+
+    expect(screen.getByText('未成交')).toBeInTheDocument()
+  })
+
   it('renders amendment history grouped by plan with reject reason', () => {
     setup(
       data({
