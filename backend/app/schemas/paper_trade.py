@@ -220,7 +220,7 @@ class PaperTradeAdminAccountListResponse(CamelModel):
 
 
 # ============================================================
-# 交易 Agent 注册表（Agent Hub 多 Agent 基座，agent-hub-plan.md D21）
+# 交易 Agent 注册表（多 Agent 基座，见 docs/arch/10-simulated-trading.md §3）
 # ============================================================
 
 #: 盘中自主执行三态（D21，批次 8）：off 停用 / shadow 判断不下单 / active 真实执行

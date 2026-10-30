@@ -1,11 +1,10 @@
 """模拟盘交易域 ORM 模型（账户 / 委托 / 成交回报 / 资金日快照 / 交易 Agent 注册表）。
 
-表结构真源是幂等 SQL 迁移（docker/database/migrations/20260924a_paper_trade_tables.sql
-与 20260926g_trading_agent_registry.sql）。
+表结构真源是幂等 SQL 迁移（已折进 docker/database/migrations/0001_baseline.sql）。
 柜台（掘金仿真，经 paper-trade sidecar）是交易状态真相源，本地表是复盘分析与
-计划执行的真相源；16:00 盘后同步任务幂等 upsert（docs/plan/paper-trading-plan.md §4/§6）。
+计划执行的真相源；16:00 盘后同步任务幂等 upsert（见 docs/arch/10-simulated-trading.md §2-§3）。
 多租户：每用户自有掘金仿真账户（token Fernet 加密），三表账户维度；
-agent 账户经 agent_key 与 trading_agent 注册表一一绑定（docs/plan/agent-hub-plan.md D22）。
+agent 账户经 agent_key 与 trading_agent 注册表一一绑定（见 docs/arch/10-simulated-trading.md §3）。
 """
 
 from datetime import date, datetime
@@ -151,7 +150,7 @@ class TradingAgent(Base):
         ),
         {
             "comment": "交易 Agent 注册表：身份/介绍/模型绑定/风控/总闸"
-            "（docs/plan/agent-hub-plan.md D21）"
+            "（见 docs/arch/10-simulated-trading.md §3）"
         },
     )
 

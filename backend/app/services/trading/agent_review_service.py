@@ -4,8 +4,8 @@
 结果按 (skill_id, input_hash=Agent+账户+周期+窗口) 缓存在 ``ai_analysis_result``
 （skill_id='paper-trade-review'），生成路径 redis 锁防重入。LLM 单轮结构化输出
 字段全 required（禁默认值铁律），一次输出三层 verdict + 盘面语境 + 方法论验证 +
-experiences——分层是批次 9 记忆精准反哺的前提（docs/plan/paper-trading-plan.md
-§9）；持久化读模型 ``PaperTradeReviewRecord`` 附带 agent_key（落库时注入，读取按
+experiences——分层是记忆精准反哺的前提（见 docs/arch/10-simulated-trading.md
+§10）；持久化读模型 ``PaperTradeReviewRecord`` 附带 agent_key（落库时注入，读取按
 Agent 过滤）。复盘契约 prompt 装载 per-agent 技能包
 ``skills/trading-<agent_key>/review_prompt.yaml``（D34 skill 化，配置页可见），
 未建目录回退共享 ``trading-default``（镜像 plan_skill_id 模式）。

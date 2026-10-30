@@ -1,10 +1,10 @@
 """判断模型内部契约（D23）：三题型 + 答案 + 响应 + 阈值组。
 
 System One 品类接口契约（state + 类型化问题 → 类型化概率答案 + confidence）的
-vendor 无关内部投影——押注接口形状，不押注厂商（paper-trading-plan §11.6）。
+vendor 无关内部投影——押注接口形状，不押注厂商（见 docs/arch/10-simulated-trading.md §9）。
 字段全部 required（禁默认值，项目铁律）。
 
-题型语义（§11.3）：
+题型语义（见 docs/arch/10-simulated-trading.md §7）：
 - Choice：N 选一（2-255 项），答案含 probabilities + confidence
 - Score：2-10 级有序量表，答案含 score（可落级间，如 1.035）+ confidence
 - Noul：是/否概率——**无 confidence 字段，数字本身即信念**
