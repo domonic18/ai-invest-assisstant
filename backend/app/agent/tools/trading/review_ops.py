@@ -51,6 +51,7 @@ def make_generate_review_tool(agent_key: str) -> BaseTool:
         """
         from app.core.exceptions import AppError
         from app.services.trading import agent_registry, agent_review_service
+        from app.services.trading.agent_review_periods import DEFAULT_REVIEW_PERIOD
 
         def _parse(raw: str | None, name: str) -> tuple[date | None, dict[str, Any] | None]:
             if not raw:
@@ -72,7 +73,7 @@ def make_generate_review_tool(agent_key: str) -> BaseTool:
         if (parsed_start is None) != (parsed_end is None):
             return {"error": "自定义区间须同时提供 start_date 与 end_date"}
         resolved_period = period or (
-            None if parsed_start is not None else "day"
+            None if parsed_start is not None else DEFAULT_REVIEW_PERIOD
         )
 
         async with AsyncSessionLocal() as session:

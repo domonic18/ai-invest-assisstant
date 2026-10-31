@@ -265,16 +265,18 @@ async def get_trading_review(
     """
     _require_scope(API_KEY_SCOPE_TRADING_READ)
 
-    if scope not in ("current", "previous"):
-        return {"error": f"无效的 scope：{scope}（应为 current 或 previous）"}
-    if period is not None and period not in (
-        "day",
-        "week",
-        "month",
-        "quarter",
-        "half_year",
-        "year",
-    ):
+    from app.services.trading.agent_review_periods import (
+        DEFAULT_REVIEW_PERIOD,
+        REVIEW_PERIODS,
+    )
+    from app.services.trading.agent_review_window import REVIEW_WINDOW_SCOPES
+
+    if scope not in REVIEW_WINDOW_SCOPES:
+        return {
+            "error": f"无效的 scope：{scope}"
+            f"（应为 {' 或 '.join(REVIEW_WINDOW_SCOPES)}）"
+        }
+    if period is not None and period not in REVIEW_PERIODS:
         return {"error": f"无效的 period：{period}"}
 
     parsed_date, date_error = _parse_date(trade_date)
@@ -293,7 +295,9 @@ async def get_trading_review(
     from app.services.trading import agent_review_service
 
     key = _agent_key(agent_key)
-    resolved_period = period or (None if parsed_start is not None else "day")
+    resolved_period = period or (
+        None if parsed_start is not None else DEFAULT_REVIEW_PERIOD
+    )
     try:
         request = agent_review_service.ReviewWindowRequest.from_values(
             period=resolved_period,
