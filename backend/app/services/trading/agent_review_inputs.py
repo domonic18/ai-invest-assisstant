@@ -39,7 +39,7 @@ def _serialize_dt(value: Any) -> Any:
     return value
 
 
-async def _collect_window_input(
+async def collect_window_input(
     session: AsyncSession, account_id: int, start: date, end: date
 ) -> dict[str, Any]:
     """组装复盘输入：窗口内委托/成交（agent 账户行）+ 同区间净值曲线 + 股票名。"""
@@ -139,7 +139,7 @@ async def _collect_window_input(
     }
 
 
-async def _has_review_target(
+async def has_review_target(
     session: AsyncSession, account_id: int, start: date, end: date
 ) -> bool:
     """有窗口内委托/成交，或历史曾成交（即有持仓来源）→ 有复盘对象。"""
@@ -162,7 +162,7 @@ async def _has_review_target(
     return bool(any_exec)
 
 
-async def _sync_landed(session: AsyncSession, account_id: int, day: date) -> bool:
+async def sync_landed(session: AsyncSession, account_id: int, day: date) -> bool:
     """16:00 盘后同步落库标志：当日资金快照行存在（sync 无条件 upsert）。"""
     return bool(
         await session.scalar(
@@ -178,13 +178,13 @@ async def _sync_landed(session: AsyncSession, account_id: int, day: date) -> boo
     )
 
 
-async def _market_review_optional(session: AsyncSession, trade_date: date) -> dict[str, Any] | None:
+async def market_review_optional(session: AsyncSession, trade_date: date) -> dict[str, Any] | None:
     """基准交易日全市场复盘解读（D34 盘面语境输入）；缺失降级 None 不阻塞——
     常态 18:35 已就绪早于复盘 19:00，补跑历史窗口时才可能缺失。"""
-    from app.services.trading.agent_plan_input import _market_review_sections
+    from app.services.trading.agent_plan_input import market_review_sections
 
     try:
-        review = await _market_review_sections(session, trade_date)
+        review = await market_review_sections(session, trade_date)
     except ReviewInputDataNotReadyError:
         return None
     return review.get("sections") or review

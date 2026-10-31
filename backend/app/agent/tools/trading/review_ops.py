@@ -78,14 +78,17 @@ def make_generate_review_tool(agent_key: str) -> BaseTool:
         async with AsyncSessionLocal() as session:
             try:
                 agent = await agent_registry.get_agent(session, agent_key)
-                result = await agent_review_service.generate_review(
-                    session,
-                    agent,
+                request = agent_review_service.ReviewWindowRequest.from_values(
                     period=resolved_period,
                     trade_date=parsed_date,
                     scope=scope,
                     start_date=parsed_start,
                     end_date=parsed_end,
+                )
+                result = await agent_review_service.generate_review(
+                    session,
+                    agent,
+                    request,
                     regenerate=regenerate,
                     trigger="manual",
                 )

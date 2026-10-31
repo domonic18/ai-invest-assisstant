@@ -7,7 +7,7 @@
 """
 
 from datetime import date
-from typing import Any, cast
+from typing import Any
 
 from mcp.server.auth.middleware.auth_context import get_access_token
 from mcp.server.fastmcp import FastMCP
@@ -291,22 +291,19 @@ async def get_trading_review(
 
     from app.core.exceptions import AppError
     from app.services.trading import agent_review_service
-    from app.services.trading.agent_review_periods import ReviewPeriod
-    from app.services.trading.agent_review_service import ReviewWindowScope
 
     key = _agent_key(agent_key)
     resolved_period = period or (None if parsed_start is not None else "day")
     try:
+        request = agent_review_service.ReviewWindowRequest.from_values(
+            period=resolved_period,
+            trade_date=parsed_date,
+            scope=scope,
+            start_date=parsed_start,
+            end_date=parsed_end,
+        )
         async with AsyncSessionLocal() as session:
-            content = await agent_review_service.get_review(
-                session,
-                key,
-                period=cast(ReviewPeriod | None, resolved_period),
-                trade_date=parsed_date,
-                scope=cast(ReviewWindowScope, scope),
-                start_date=parsed_start,
-                end_date=parsed_end,
-            )
+            content = await agent_review_service.get_review(session, key, request)
     except AppError as exc:
         return {"error": str(exc)}
     if content is None:

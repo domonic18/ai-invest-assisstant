@@ -7,16 +7,14 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
+from app.services.review.market_review_service import ReviewInputDataNotReadyError
 from app.services.trading.agent_review_service import (
     PaperTradeReviewLockedError,
     ReviewWindowNotReadyError,
 )
 from app.services.trading.errors import AgentAccountNotDesignatedError
 from collector.core.base import CollectStatus
-from collector.spiders.paper_trade_review import (
-    PaperTradeReviewCollector,
-    ReviewInputDataNotReadyError,
-)
+from collector.spiders.paper_trade_review import PaperTradeReviewCollector
 
 _TRADE_DATE = date(2026, 7, 17)  # Friday
 
@@ -56,25 +54,25 @@ def _patch_env(
     week_end: bool = False,
     month_end: bool = False,
 ):
-    """统一打桩：日历/会话工厂/注册表/生成服务/周期末判定。"""
+    """统一打桩（定时通道）：日历/会话工厂/注册表/生成服务/周期末判定。"""
     agent_rows = agents if agents is not None else [_agent()]
     cadence_by_key = {a.agent_key: a.review_cadence for a in agent_rows}
     return (
         patch(
-            "collector.spiders.paper_trade_review.is_trading_day",
-            return_value=trading_day,
+            "collector.spiders.paper_trade_review_scheduled.is_trading_day",
+            AsyncMock(return_value=trading_day),
         ),
         patch(
-            "collector.spiders.paper_trade_review.latest_trading_day",
-            return_value=_TRADE_DATE,
+            "collector.spiders.paper_trade_review_scheduled.resolve_latest_trade_date",
+            AsyncMock(return_value=_TRADE_DATE),
         ),
-        patch("collector.spiders.paper_trade_review.AsyncSessionLocal"),
+        patch("collector.spiders.paper_trade_review_scheduled.AsyncSessionLocal"),
         patch(
-            "collector.spiders.paper_trade_review.agent_registry.get_active_agents",
+            "collector.spiders.paper_trade_review_scheduled.agent_registry.get_active_agents",
             AsyncMock(return_value=agent_rows),
         ),
         patch(
-            "collector.spiders.paper_trade_review.agent_registry.get_agent",
+            "collector.spiders.paper_trade_review_scheduled.agent_registry.get_agent",
             AsyncMock(
                 side_effect=lambda _s, key: _agent(
                     key, cadence_by_key.get(key, "daily")
@@ -82,15 +80,15 @@ def _patch_env(
             ),
         ),
         patch(
-            "collector.spiders.paper_trade_review.agent_review_service.generate_review",
+            "app.services.trading.agent_review_service.generate_review",
             generate or AsyncMock(return_value=_result()),
         ),
         patch(
-            "collector.spiders.paper_trade_review.agent_review_service.is_last_trading_day_of_week",
+            "collector.spiders.paper_trade_review_scheduled.is_last_trading_day_of_week",
             AsyncMock(return_value=week_end),
         ),
         patch(
-            "collector.spiders.paper_trade_review.agent_review_service.is_last_trading_day_of_month",
+            "collector.spiders.paper_trade_review_scheduled.is_last_trading_day_of_month",
             AsyncMock(return_value=month_end),
         ),
     )
@@ -110,14 +108,29 @@ def _patch_on_demand(
     generate: AsyncMock | None = None,
     agent_error: Exception | None = None,
 ):
-    """按需分支打桩：在通用 env 上可替换 get_agent 的异常。"""
-    patches = list(_patch_env(trading_day=trading_day, generate=generate))
+    """按需分支打桩：日历/会话工厂/注册表/生成服务。"""
+    get_agent = AsyncMock(side_effect=lambda _s, key: _agent(key))
     if agent_error is not None:
-        patches[4] = patch(
-            "collector.spiders.paper_trade_review.agent_registry.get_agent",
-            AsyncMock(side_effect=agent_error),
-        )
-    return patches
+        get_agent = AsyncMock(side_effect=agent_error)
+    return [
+        patch(
+            "collector.spiders.paper_trade_review_on_demand.is_trading_day",
+            AsyncMock(return_value=trading_day),
+        ),
+        patch(
+            "collector.spiders.paper_trade_review_on_demand.resolve_latest_trade_date",
+            AsyncMock(return_value=_TRADE_DATE),
+        ),
+        patch("collector.spiders.paper_trade_review_on_demand.AsyncSessionLocal"),
+        patch(
+            "collector.spiders.paper_trade_review_on_demand.agent_registry.get_agent",
+            get_agent,
+        ),
+        patch(
+            "app.services.trading.agent_review_service.generate_review",
+            generate or AsyncMock(return_value=_result()),
+        ),
+    ]
 
 
 @pytest.mark.unit
@@ -136,14 +149,14 @@ class TestPaperTradeReviewOnDemand:
         assert result.status == CollectStatus.SUCCESS
         assert result.items_collected == 1
         assert result.items_stored == 1
-        kwargs = generate.await_args.kwargs
-        assert kwargs["period"] == "quarter"
-        assert kwargs["trade_date"] == _TRADE_DATE
-        assert kwargs["scope"] == "current"
-        assert kwargs["start_date"] is None
-        assert kwargs["end_date"] is None
-        assert kwargs["regenerate"] is False
-        assert kwargs["trigger"] == "manual"
+        request = generate.await_args.args[2]
+        assert request.period == "quarter"
+        assert request.trade_date == _TRADE_DATE
+        assert request.scope == "current"
+        assert request.start_date is None
+        assert request.end_date is None
+        assert generate.await_args.kwargs["regenerate"] is False
+        assert generate.await_args.kwargs["trigger"] == "manual"
         assert result.metadata == {
             "agent_key": "short-line",
             "period": "quarter",
@@ -167,10 +180,10 @@ class TestPaperTradeReviewOnDemand:
             )
 
         assert result.status == CollectStatus.SUCCESS
-        kwargs = generate.await_args.kwargs
-        assert kwargs["period"] is None
-        assert kwargs["start_date"] == date(2026, 6, 1)
-        assert kwargs["end_date"] == _TRADE_DATE
+        request = generate.await_args.args[2]
+        assert request.period is None
+        assert request.start_date == date(2026, 6, 1)
+        assert request.end_date == _TRADE_DATE
         assert result.metadata["start_date"] == "2026-06-01"
         assert result.metadata["end_date"] == "2026-07-17"
 
@@ -184,9 +197,10 @@ class TestPaperTradeReviewOnDemand:
             )
 
         assert result.status == CollectStatus.SUCCESS
-        assert generate.await_args.kwargs["scope"] == "previous"
+        request = generate.await_args.args[2]
+        assert request.scope == "previous"
         # 上期窗口基准日由服务层解析，spider 仍取最近交易日做非交易日预检
-        assert generate.await_args.kwargs["trade_date"] == _TRADE_DATE
+        assert request.trade_date == _TRADE_DATE
 
     @pytest.mark.asyncio
     async def test_rejects_unpaired_range(self) -> None:
@@ -223,7 +237,7 @@ class TestPaperTradeReviewOnDemand:
 
         assert generate.await_args.kwargs["regenerate"] is True
         # 缺省基准日回退最新交易日
-        assert generate.await_args.kwargs["trade_date"] == _TRADE_DATE
+        assert generate.await_args.args[2].trade_date == _TRADE_DATE
 
     @pytest.mark.asyncio
     async def test_cached_and_no_target_messages(self) -> None:
@@ -366,7 +380,7 @@ class TestPaperTradeReviewCollector:
         }
         generate.assert_awaited_once()
         assert generate.await_args.args[1].agent_key == "short-line"
-        assert generate.await_args.kwargs["period"] == "day"
+        assert generate.await_args.args[2].period == "day"
 
     @pytest.mark.asyncio
     async def test_cache_hit_reports_message_without_storing(self) -> None:
@@ -387,7 +401,7 @@ class TestPaperTradeReviewCollector:
             result = await _collector().run()
 
         assert result.status == CollectStatus.SUCCESS
-        periods = [c.kwargs["period"] for c in generate.await_args_list]
+        periods = [c.args[2].period for c in generate.await_args_list]
         assert periods == ["day", "week", "month"]
         agent_meta = result.metadata["agents"]["short-line"]
         assert agent_meta["week"] == {"cached": False, "no_target": False}
@@ -412,8 +426,8 @@ class TestPaperTradeReviewCollector:
     async def test_boost_unexpected_error_recorded_not_raised(self) -> None:
         """加发周期非锁异常隔离：首周期结果保留，其余周期继续执行。"""
 
-        async def _generate(_session, _agent, *, period, **kwargs):
-            if period == "week":
+        async def _generate(_session, _agent, request, **kwargs):
+            if request.period == "week":
                 raise RuntimeError("boom")
             return _result()
 
@@ -434,8 +448,8 @@ class TestPaperTradeReviewCollector:
         """软超时必须上抛（由 run_collector_task 统一收尾），不按加发周期隔离。"""
         from celery.exceptions import SoftTimeLimitExceeded
 
-        async def _generate(_session, _agent, *, period, **kwargs):
-            if period == "week":
+        async def _generate(_session, _agent, request, **kwargs):
+            if request.period == "week":
                 raise SoftTimeLimitExceeded()
             return _result()
 
@@ -446,8 +460,8 @@ class TestPaperTradeReviewCollector:
 
     @pytest.mark.asyncio
     async def test_boost_locked_is_recorded_not_raised(self) -> None:
-        async def _generate(_session, _agent, *, period, **kwargs):
-            if period == "month":
+        async def _generate(_session, _agent, request, **kwargs):
+            if request.period == "month":
                 raise PaperTradeReviewLockedError("正在生成")
             return _result()
 
@@ -482,7 +496,7 @@ class TestPaperTradeReviewCollector:
         daily 未就绪被降级为 SKIPPED，当日日度复盘永久丢失。
         """
 
-        async def _generate(_session, agent, **kwargs):
+        async def _generate(_session, agent, request, **kwargs):
             if agent.agent_key == "long-line":
                 return _result()
             raise ReviewInputDataNotReadyError("未就绪")
@@ -500,7 +514,7 @@ class TestPaperTradeReviewCollector:
     async def test_not_ready_with_due_agent_ok_is_partial(self) -> None:
         """应生成 Agent 中部分未就绪 → PARTIAL，不整任务重试。"""
 
-        async def _generate(_session, agent, **kwargs):
+        async def _generate(_session, agent, request, **kwargs):
             if agent.agent_key == "m60":
                 raise ReviewInputDataNotReadyError("未就绪")
             return _result()
@@ -518,7 +532,7 @@ class TestPaperTradeReviewCollector:
     async def test_not_ready_with_one_ready_agent_is_partial(self) -> None:
         """单 Agent 未就绪不传播：另一个成功 → PARTIAL，明细进 message。"""
 
-        async def _generate(_session, agent, **kwargs):
+        async def _generate(_session, agent, request, **kwargs):
             if agent.agent_key == "m60":
                 raise ReviewInputDataNotReadyError("未就绪")
             return _result()
@@ -559,7 +573,7 @@ class TestPaperTradeReviewCollector:
         patches = _patch_env(
             agents=[_agent("short-line"), _agent("m60")],
             generate=AsyncMock(
-                side_effect=lambda _s, a, **kw: (
+                side_effect=lambda _s, a, _r, **kw: (
                     _result()
                     if a.agent_key == "short-line"
                     else (_ for _ in ()).throw(RuntimeError("boom"))
@@ -598,7 +612,7 @@ class TestPaperTradeReviewCollector:
             result = await _collector().run()
 
         assert result.status == CollectStatus.SUCCESS
-        periods = [c.kwargs["period"] for c in generate.await_args_list]
+        periods = [c.args[2].period for c in generate.await_args_list]
         assert periods == ["week"]
         assert result.metadata["agents"]["long-line"] == {
             "week": {"cached": False, "no_target": False}
@@ -616,7 +630,7 @@ class TestPaperTradeReviewCollector:
             result = await _collector().run()
 
         assert result.status == CollectStatus.SUCCESS
-        periods = [c.kwargs["period"] for c in generate.await_args_list]
+        periods = [c.args[2].period for c in generate.await_args_list]
         assert periods == ["month"]
 
         patches = _patch_env(agents=[_agent("long-line", "monthly")], month_end=False)

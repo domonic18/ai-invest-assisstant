@@ -13,17 +13,11 @@ Agent 对话路径直调 ``generate_review``（工具内 await，事件回写）
 """
 
 from datetime import date
-from typing import Any, Literal, cast
+from typing import Any, Literal
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions import BadRequestError
 from app.models.collector_log import CollectorLog
-from app.services.market.trade_calendar_service import (
-    NonTradingDayError,
-    is_trading_day,
-)
-from app.services.trading.agent_review_periods import REVIEW_PERIODS, ReviewPeriod
 
 #: 复盘任务类型名（TASK_SPECS 键，定时与按需共用）
 REVIEW_TASK_NAME = "paper-trade-review"
@@ -55,9 +49,8 @@ async def enqueue_review_generation(
         dispatcher 创建的 pending ``CollectorLog``（含 celery_task_id，供前端轮询）。
 
     Raises:
-        ValueError: 周期不在六档词表内。
-        BadRequestError: 区间不成对/倒置、缺少周期与区间，或窗口末日
-            盘后同步尚未落库（``ReviewWindowNotReadyError``）。
+        BadRequestError: 周期不在六档词表、区间不成对/倒置、缺少周期与区间，
+            或窗口末日盘后同步尚未落库（``ReviewWindowNotReadyError``）。
         NotFoundError: Agent 未注册。
         NonTradingDayError: 显式交易日不是交易日。
     """
@@ -65,32 +58,15 @@ async def enqueue_review_generation(
     from app.services.trading import agent_registry, agent_review_service
     from collector.runtime.dispatcher import dispatch_collector_task
 
-    if period is not None and period not in REVIEW_PERIODS:
-        raise ValueError(f"未知复盘周期：{period}")
-    if (start_date is None) != (end_date is None):
-        raise BadRequestError("自定义区间须同时提供开始日与结束日")
-    if start_date is not None and end_date is not None:
-        if end_date < start_date:
-            raise BadRequestError(
-                f"区间结束日 {end_date.isoformat()} 早于开始日 {start_date.isoformat()}"
-            )
-    elif period is None:
-        raise BadRequestError("缺少复盘周期：请提供 period 或自定义区间")
-
-    agent = await agent_registry.get_agent(session, agent_key)
-    if trade_date is not None and not await is_trading_day(session, trade_date):
-        raise NonTradingDayError(
-            f"{trade_date.isoformat()} 不是交易日，复盘只对交易日有效"
-        )
-
-    window = await agent_review_service.resolve_requested_window(
-        session,
-        period=cast(ReviewPeriod | None, period),
+    request = agent_review_service.ReviewWindowRequest.from_values(
+        period=period,
         trade_date=trade_date,
         scope=scope,
         start_date=start_date,
         end_date=end_date,
     )
+    agent = await agent_registry.get_agent(session, agent_key)
+    window = await agent_review_service.resolve_requested_window(session, request)
     await agent_review_service.ensure_window_ready(session, agent, window)
 
     params: dict[str, Any] = {"agent_key": agent_key, "regenerate": regenerate}

@@ -18,8 +18,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import AsyncSessionLocal
 from app.models.paper_trade import TradingAgent
 from app.services.review.market_review_service import ReviewInputDataNotReadyError
-from app.services.trading import agent_plan_service, agent_registry, agent_review_service
+from app.services.trading import agent_plan_service, agent_registry
 from app.services.trading.agent_plan_service import PlanGenerationLockedError
+from app.services.trading.agent_review_periods import (
+    is_last_trading_day_of_month,
+    is_last_trading_day_of_week,
+)
 from app.services.trading.errors import (
     AgentAccountNotDesignatedError,
     PaperTradeNotConfiguredError,
@@ -37,13 +41,9 @@ _PER_AGENT_SKIPPABLE = (
 async def _plan_due(session: AsyncSession, agent: TradingAgent, trade_date: date) -> bool:
     """按注册行 plan_cadence 判定 trade_date 是否为计划生成日（D28）。"""
     if agent.plan_cadence == "weekly":
-        return await agent_review_service.is_last_trading_day_of_week(
-            session, trade_date
-        )
+        return await is_last_trading_day_of_week(session, trade_date)
     if agent.plan_cadence == "monthly":
-        return await agent_review_service.is_last_trading_day_of_month(
-            session, trade_date
-        )
+        return await is_last_trading_day_of_month(session, trade_date)
     return True
 
 

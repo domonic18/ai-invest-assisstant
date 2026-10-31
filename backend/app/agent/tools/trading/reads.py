@@ -63,15 +63,16 @@ def make_get_review_tool(agent_key: str) -> BaseTool:
         from app.core.exceptions import AppError
 
         try:
+            request = agent_review_service.ReviewWindowRequest.from_values(
+                period=resolved_period,
+                trade_date=parsed_date,
+                scope=scope,
+                start_date=parsed_start,
+                end_date=parsed_end,
+            )
             async with AsyncSessionLocal() as session:
                 content = await agent_review_service.get_review(
-                    session,
-                    agent_key,
-                    period=resolved_period,
-                    trade_date=parsed_date,
-                    scope=scope,
-                    start_date=parsed_start,
-                    end_date=parsed_end,
+                    session, agent_key, request
                 )
         except AppError as exc:
             return {"error": str(exc)}

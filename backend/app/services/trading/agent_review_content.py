@@ -3,7 +3,7 @@
 复盘分层判定的 Pydantic 契约单点：字段禁默认值（进 JSON Schema required，
 LLM 必须对每层显式表态）；旧缓存行缺新增键由 before-validator 补空值兼容
 读取（校验器不影响 LLM schema）。编排/取数/LLM 调用见
-``agent_review_service`` / ``agent_review_inputs``。
+``agent_review_generate`` / ``agent_review_inputs``。
 """
 
 from dataclasses import dataclass
@@ -16,6 +16,9 @@ from app.services.trading.agent_review_sections import (
     ReviewSection,
     canonicalize_sections,
 )
+
+#: 复盘落库 skill_id（缓存行 / 读模型 / 总览统计共用）
+REVIEW_SKILL_ID = "paper-trade-review"
 
 #: 预检无复盘对象时落缓存行的系统标记原因（展示层据此与「未执行」区分）
 NO_TARGET_REASON = "复盘窗口内无委托成交，账户亦无历史持仓（空仓无复盘对象）"

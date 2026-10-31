@@ -97,7 +97,7 @@ class TestGetTradingAgentReview:
                 AsyncMock(return_value=row),
             ),
             patch(
-                "app.services.trading.agent_review_service.resolve_review_window",
+                "app.services.trading.agent_review_window.resolve_review_window",
                 AsyncMock(return_value=_window()),
             ),
         ):
@@ -137,7 +137,7 @@ class TestGetTradingAgentReview:
                 AsyncMock(return_value=row),
             ),
             patch(
-                "app.services.trading.agent_review_service.resolve_review_window",
+                "app.services.trading.agent_review_window.resolve_review_window",
                 AsyncMock(return_value=_window()),
             ),
         ):
@@ -162,7 +162,7 @@ class TestGetTradingAgentReview:
                 AsyncMock(return_value=None),
             ),
             patch(
-                "app.services.trading.agent_review_service.resolve_review_window",
+                "app.services.trading.agent_review_window.resolve_review_window",
                 AsyncMock(return_value=_window()),
             ),
         ):
@@ -199,7 +199,7 @@ class TestGetTradingAgentReview:
                 AsyncMock(return_value=row),
             ),
             patch(
-                "app.services.trading.agent_review_service.resolve_review_window",
+                "app.services.trading.agent_review_window.resolve_review_window",
                 AsyncMock(return_value=_window()),
             ),
         ):
@@ -327,10 +327,10 @@ class TestReviewWindowParams:
             )
 
         assert resp.status_code == 200
-        kwargs = get_review.await_args.kwargs
-        assert kwargs["period"] is None
-        assert kwargs["start_date"] == date(2026, 6, 1)
-        assert kwargs["end_date"] == date(2026, 7, 17)
+        request = get_review.await_args.args[2]
+        assert request.period is None
+        assert request.start_date == date(2026, 6, 1)
+        assert request.end_date == date(2026, 7, 17)
 
     def test_previous_scope_message_marks_previous(self, admin_client) -> None:
         http, _ = admin_client

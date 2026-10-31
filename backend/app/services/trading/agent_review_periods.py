@@ -267,3 +267,22 @@ async def resolve_explicit_window(
     """
     days = await list_trading_days(session, start, end)
     return _build_window(period, start, end, days)
+
+
+async def is_last_trading_day_of_week(session: AsyncSession, day: date) -> bool:
+    """day 之后最近的交易日是否已跨入下一周（ISO 周）——周五遇休市时周四即为周期末。"""
+    nxt = await _next_trading_day(session, day)
+    return nxt is None or nxt.isocalendar()[:2] != day.isocalendar()[:2]
+
+
+async def is_last_trading_day_of_month(session: AsyncSession, day: date) -> bool:
+    """day 之后最近的交易日是否已跨入下一月。"""
+    nxt = await _next_trading_day(session, day)
+    return nxt is None or (nxt.year, nxt.month) != (day.year, day.month)
+
+
+async def _next_trading_day(session: AsyncSession, day: date) -> date | None:
+    # 延迟 import：market 子域聚合面大，避免与 trading 形成顶层环导入
+    from app.services.market.trade_calendar_service import next_trading_day
+
+    return await next_trading_day(session, day)

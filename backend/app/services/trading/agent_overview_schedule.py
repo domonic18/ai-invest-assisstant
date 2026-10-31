@@ -17,7 +17,10 @@ from app.models.collector_task import CollectorTask
 from app.models.paper_trade import TradingAgent
 from app.schemas.paper_trade import AgentNextTask
 from app.services.market import trade_calendar_service
-from app.services.trading import agent_review_service
+from app.services.trading.agent_review_periods import (
+    is_last_trading_day_of_month,
+    is_last_trading_day_of_week,
+)
 
 # 总览「接下来」消费的 Agent 定时任务（task_name, 显示名, cadence 注册列）
 _OVERVIEW_TASKS: tuple[tuple[str, str, str], ...] = (
@@ -71,9 +74,9 @@ async def _cadence_due(
     if not await trade_calendar_service.is_trading_day(session, day):
         return False
     if cadence == "weekly":
-        return await agent_review_service.is_last_trading_day_of_week(session, day)
+        return await is_last_trading_day_of_week(session, day)
     if cadence == "monthly":
-        return await agent_review_service.is_last_trading_day_of_month(session, day)
+        return await is_last_trading_day_of_month(session, day)
     return True
 
 

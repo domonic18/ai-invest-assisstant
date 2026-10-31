@@ -207,10 +207,10 @@ def test_trading_review_passes_custom_range():
         )
 
     assert result["period"] == "custom"
-    kwargs = mocked.await_args.kwargs
-    assert kwargs["period"] is None
-    assert kwargs["start_date"] == date(2026, 10, 1)
-    assert kwargs["end_date"] == date(2026, 10, 20)
+    request = mocked.await_args.args[2]
+    assert request.period is None
+    assert request.start_date == date(2026, 10, 1)
+    assert request.end_date == date(2026, 10, 20)
 
 
 def test_list_trading_plans_serializes_decimals():
