@@ -57,7 +57,7 @@ const TAB_ITEMS = [
   { key: 'config', label: '配置' },
 ]
 
-function renderTabPane(key: TabKey) {
+function renderTabPane(key: TabKey, agentKey: string | undefined) {
   switch (key) {
     case 'selections':
       return <AgentSelectionsPanel />
@@ -68,7 +68,8 @@ function renderTabPane(key: TabKey) {
     case 'execution':
       return <ExecutionTab />
     case 'review':
-      return <ReviewPanel />
+      // Agent 切换必须重挂载：复位窗口选择与派发中的生成任务状态
+      return <ReviewPanel key={agentKey ?? ''} />
     case 'experiences':
       return <AgentMemoryPanel />
     case 'config':
@@ -192,7 +193,10 @@ export function TradingAgent() {
           <Tabs
             activeKey={activeTab}
             onChange={changeTab}
-            items={TAB_ITEMS.map((item) => ({ ...item, children: renderTabPane(item.key as TabKey) }))}
+            items={TAB_ITEMS.map((item) => ({
+              ...item,
+              children: renderTabPane(item.key as TabKey, agentKey),
+            }))}
             size="small"
             className="flex h-full flex-col [&_.ant-tabs-content-holder]:min-h-0 [&_.ant-tabs-content-holder]:flex-1 [&_.ant-tabs-content-holder]:overflow-y-auto [&_.ant-tabs-nav]:!mb-3 [&_.ant-tabs-nav]:shrink-0 [&_.ant-tabs-tab]:!py-1.5"
             destroyInactiveTabPane={false}

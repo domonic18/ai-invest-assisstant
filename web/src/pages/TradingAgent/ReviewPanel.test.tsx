@@ -51,8 +51,11 @@ function review(overrides: Partial<ApiTradingAgentReview> = {}): ApiTradingAgent
   }
 }
 
-function setup(data: ApiTradingAgentReview | null) {
-  mockReview.mockReturnValue({ data, isLoading: false } as unknown as ReturnType<
+function setup(
+  data: ApiTradingAgentReview | null,
+  error: unknown = null,
+) {
+  mockReview.mockReturnValue({ data, isLoading: false, error, refetch: vi.fn() } as unknown as ReturnType<
     typeof useTradingAgentReview
   >)
   mockDates.mockReturnValue({ data: { planDates: [], reviewDates: {} } } as unknown as ReturnType<
@@ -105,6 +108,19 @@ describe('ReviewPanel', () => {
 
     expect(lastWindow()).toEqual({ period: 'day', scope: 'previous', tradeDate: undefined })
     expect(screen.getByText(/上一日复盘尚未生成/)).toBeInTheDocument()
+  })
+
+  it('404 走空态，其余错误展示真实故障与重试', () => {
+    setup(null, { response: { status: 404 }, isAxiosError: true })
+    expect(screen.getByText(/当前日复盘尚未生成/)).toBeInTheDocument()
+    expect(screen.queryByText('复盘加载失败')).not.toBeInTheDocument()
+
+    setup(null, {
+      response: { status: 500, data: { detail: '内部错误' } },
+      isAxiosError: true,
+    })
+    expect(screen.getByText('复盘加载失败')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /重\s*试/ })).toBeInTheDocument()
   })
 
   it('已执行但空仓时展示「无复盘对象」说明', () => {

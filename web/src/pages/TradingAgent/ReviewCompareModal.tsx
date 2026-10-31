@@ -11,7 +11,6 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react'
 
 import type {
   ApiTradingAgentReviewCompareResponse,
-  ApiTradingAgentReviewMetrics,
   TradingAgentReviewCompareWindow,
   TradingAgentReviewWindow,
   TradingReviewPeriod,
@@ -20,76 +19,18 @@ import type {
 
 import { useCompareTradingAgentReviews } from '@/hooks/useTradingAgent'
 import { useColorScheme } from '@/stores/settings'
-import { changeHex, DATE_FORMAT, formatNumber, formatPercent } from '@/utils/formatters'
+import { DATE_FORMAT } from '@/utils/formatters'
 
 import { describeWindow, REVIEW_PERIOD_OPTIONS } from './reviewMeta'
+import {
+  compareMetricColor,
+  COMPARE_METRIC_ROWS,
+  type ReviewMetricRow,
+} from './reviewMetricsMeta'
 
 const SCOPE_OPTIONS = [
   { label: '本期', value: 'current' },
   { label: '上期', value: 'previous' },
-]
-
-interface CompareRow {
-  key: string
-  label: string
-  /** 数值指标（同一口径）；null = 至少一侧不可计算。 */
-  pick: (metrics: ApiTradingAgentReviewMetrics) => number | null
-  format: (value: number) => string
-  colored?: boolean
-}
-
-const ROWS: CompareRow[] = [
-  {
-    key: 'returnPct',
-    label: '区间收益',
-    pick: (m) => m.returnPct,
-    format: (v) => formatPercent(v),
-    colored: true,
-  },
-  {
-    key: 'annualized',
-    label: '年化收益',
-    pick: (m) => m.annualizedReturnPct,
-    format: (v) => formatPercent(v),
-    colored: true,
-  },
-  {
-    key: 'drawdown',
-    label: '最大回撤',
-    pick: (m) => m.maxDrawdownPct,
-    format: (v) => `-${formatNumber(v)}%`,
-  },
-  {
-    key: 'excess',
-    label: '超额收益',
-    pick: (m) => m.excessReturnPct,
-    format: (v) => formatPercent(v),
-    colored: true,
-  },
-  {
-    key: 'winRate',
-    label: '胜率',
-    pick: (m) => m.winRatePct,
-    format: (v) => formatPercent(v),
-  },
-  {
-    key: 'plRatio',
-    label: '盈亏比',
-    pick: (m) => m.profitLossRatio,
-    format: (v) => formatNumber(v),
-  },
-  {
-    key: 'turnover',
-    label: '换手率',
-    pick: (m) => m.turnoverRatePct,
-    format: (v) => formatPercent(v),
-  },
-  {
-    key: 'deviation',
-    label: '执行偏差',
-    pick: (m) => m.executionDeviationPct,
-    format: (v) => formatPercent(v),
-  },
 ]
 
 function draftToWindow(
@@ -165,7 +106,7 @@ export function ReviewCompareModal({
     : []
 
   const compareRows = snapshot
-    ? ROWS.map((row) => ({
+    ? COMPARE_METRIC_ROWS.map((row) => ({
         key: row.key,
         label: row.label,
         a: renderCompareValue(row.pick(snapshot.data.windowA), row),
@@ -249,9 +190,8 @@ function EmptyHint() {
 }
 
 /** 表内数值：null → '-'；收益类指标按正负着色，其余中性。 */
-function renderCompareValue(value: number | null, row: CompareRow): ReactNode {
+function renderCompareValue(value: number | null, row: ReviewMetricRow): ReactNode {
   if (value === null) return '-'
-  return (
-    <span style={row.colored ? { color: changeHex(value) } : undefined}>{row.format(value)}</span>
-  )
+  const color = compareMetricColor(value, row.tone)
+  return <span style={color ? { color } : undefined}>{row.format(value)}</span>
 }

@@ -41,3 +41,24 @@ export function describeWindow(window: TradingAgentReviewWindow): string {
   const dateText = window.tradeDate ? `（基准日 ${window.tradeDate}）` : ''
   return `${period}${scopeText}${dateText}`
 }
+
+/** 未生成态文案：按窗口形态区分自动/按需生成。 */
+export function reviewEmptyDescription(
+  period: TradingReviewPeriod,
+  scope: TradingReviewScope,
+  hasRange: boolean,
+  tradeDate?: string,
+): string {
+  if (hasRange) return '该区间尚未生成复盘，点击「生成复盘」按区间生成'
+  const label = REVIEW_PERIOD_LABELS[period]
+  if (!AUTO_REVIEW_PERIODS.includes(period)) {
+    return scope === 'previous'
+      ? `${label}上期按需生成，点击「生成复盘」触发`
+      : `${label}档按需生成，点击「生成复盘」触发`
+  }
+  if (scope === 'previous') {
+    return `上一${label}复盘尚未生成（每交易日 19:00 盘后自动生成）`
+  }
+  const when = tradeDate && dayjs(tradeDate).isBefore(dayjs(), 'day') ? '该日' : '当前'
+  return `${when}${label}复盘尚未生成（每交易日 19:00 盘后自动生成）`
+}
