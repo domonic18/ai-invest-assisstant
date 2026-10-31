@@ -273,10 +273,13 @@ const formatAxisValue = (value: number) =>
       },
     },
     axisPointer: { link: [{ xAxisIndex: 'all' }] },
+    // outerBoundsMode='none'：ECharts 默认按各 grid 自身 y 轴标签宽度收缩绘图区，
+    // 主图右侧价格刻度与副图左侧量能刻度宽度不同，会把两个 grid 的横向范围缩成不同宽度，
+    // 导致蜡烛与量能柱逐根错位；固定 right 留足价格刻度与最新价胶囊的位置
     grid: hasVolume
       ? [
-          { left: 60, right: 16, top: 28, height: '56%' },
-          { left: 60, right: 16, top: '74%', height: '16%' },
+          { left: 60, right: 64, top: 28, height: '56%', outerBoundsMode: 'none' },
+          { left: 60, right: 64, top: '74%', height: '16%', outerBoundsMode: 'none' },
         ]
       : [{ left: 60, right: 16, top: 28, bottom: 24 }],
     dataZoom: [
