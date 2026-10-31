@@ -59,6 +59,7 @@ from app.services.trading.agent_overview_schedule import (
     _running_log_tasks,
 )
 from app.services.trading.agent_plan_service import plan_skill_id
+from app.services.trading.agent_review_content import REVIEW_SKILL_ID
 from app.skills import get_skill
 
 logger = structlog.get_logger(__name__)
@@ -155,7 +156,7 @@ async def _build_item(
             and await _cadence_due(session, row.plan_cadence, today)
         )
         review_running = (
-            "paper-trade-review" in ctx.running_tasks
+            REVIEW_SKILL_ID in ctx.running_tasks
             and row.review_cadence is not None
             and await _cadence_due(session, row.review_cadence, today)
         )

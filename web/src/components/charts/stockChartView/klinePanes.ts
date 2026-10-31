@@ -6,41 +6,15 @@
 import type { EChartsOption, SeriesOption, TitleComponentOption } from 'echarts'
 
 import { fmt, FONT_MONO, signed } from '@/components/charts/chartShared'
+import { alignedGrid } from '@/components/charts/chartLayout'
+import type { PaneRect } from '@/components/charts/chartLayout'
 import { fallHex, riseHex } from '@/utils/formatters'
 import type { ECharts } from 'echarts'
 import type { KlineChartData } from './klineData'
-import { BORDER_COLOR, TEXT_MUTED } from './constants'
+import { BORDER_COLOR, STOCK_GRID_EDGES, TEXT_MUTED } from './constants'
 
-export interface PaneRect {
-  top: number
-  height: number
-}
-
-/** MA 数值行（两行 11px）悬浮于主图内时需预留的顶部高度。 */
-export const MA_LEGEND_TOP_RESERVE = 34
-
-/** 按总高与副图数分配窗格：1 副 64/36，2 副 52/24/24，3 副 52/24/24。 */
-export function computePaneLayout(height: number, subCount: number, topReserve = 8): PaneRect[] {
-  const bottomReserve = 34
-  const gap = 6
-  const usable = Math.max(height - topReserve - bottomReserve - gap * subCount, 120)
-  const ratios =
-    subCount === 0
-      ? [1]
-      : subCount === 1
-        ? [0.64, 0.36]
-        : subCount === 2
-          ? [0.52, 0.24, 0.24]
-          : [0.52, 0.24, 0.24]
-  const panes: PaneRect[] = []
-  let cursor = topReserve
-  for (const ratio of ratios) {
-    const h = Math.round(usable * ratio)
-    panes.push({ top: cursor, height: h })
-    cursor += h + gap
-  }
-  return panes
-}
+export { computePaneLayout, MA_LEGEND_TOP_RESERVE } from '@/components/charts/chartLayout'
+export type { PaneRect } from '@/components/charts/chartLayout'
 
 export type SubPaneKey = 'volume' | 'macd' | 'kdj'
 
@@ -274,7 +248,7 @@ export function buildSubPane(
   const dates = data.dates
   return {
     title: buildLegendTitle(key, pane.top + 2, data, ctx),
-    grid: { left: 46, right: 60, top: pane.top, height: pane.height },
+    grid: alignedGrid(STOCK_GRID_EDGES, pane),
     xAxis: {
       type: 'category',
       gridIndex: yAxisIndex - 1,

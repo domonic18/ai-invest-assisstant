@@ -165,15 +165,14 @@ async def get_trading_agent_review(
 
     窗口形态与生成接口一致（本期/上期/自定义区间）；``noTargetReason`` 非空
     表示已执行但空仓无复盘对象，供前端与「未生成」区分。"""
-    content = await agent_review_service.get_review(
-        session,
-        agent_key,
+    request = agent_review_service.ReviewWindowRequest.from_values(
         period=period,
         trade_date=trade_date,
         scope=scope,
         start_date=start_date,
         end_date=end_date,
     )
+    content = await agent_review_service.get_review(session, agent_key, request)
     if content is None:
         if start_date is not None and end_date is not None:
             window_text = f"{start_date.isoformat()} 至 {end_date.isoformat()}"
@@ -236,14 +235,14 @@ async def compare_trading_agent_reviews(
     result = await agent_review_service.compare_reviews(
         session,
         agent_key,
-        window_a=agent_review_service.ReviewWindowRequest(
+        window_a=agent_review_service.ReviewWindowRequest.from_values(
             period=data.window_a.period,
             trade_date=data.window_a.trade_date,
             scope=data.window_a.scope,
             start_date=data.window_a.start_date,
             end_date=data.window_a.end_date,
         ),
-        window_b=agent_review_service.ReviewWindowRequest(
+        window_b=agent_review_service.ReviewWindowRequest.from_values(
             period=data.window_b.period,
             trade_date=data.window_b.trade_date,
             scope=data.window_b.scope,

@@ -16,7 +16,7 @@ from app.models.paper_trade import PaperTradeOrder
 from app.repositories.market.stock_repository import StockRepository
 from app.schemas.paper_trade import AgentActivityItem, AgentMemoryCounts
 from app.services.trading.account_service import resolve_agent_account
-from app.services.trading.agent_review_service import REVIEW_SKILL_ID
+from app.services.trading.agent_review_content import REVIEW_SKILL_ID
 from app.services.trading.errors import AgentAccountNotDesignatedError
 
 _PLAN_STATUS_TITLE = {

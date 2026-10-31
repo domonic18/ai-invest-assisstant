@@ -5,7 +5,13 @@ import { Typography } from 'antd'
 import type { ApiTradingAgentReviewMetrics } from '@ai-invest/shared'
 
 import { useColorScheme } from '@/stores/settings'
-import { changeHex, fallHex, formatNumber, formatPercent } from '@/utils/formatters'
+
+import {
+  formatMetricValue,
+  metricColor,
+  REVIEW_METRIC_ROWS,
+  type ReviewMetricRow,
+} from './reviewMetricsMeta'
 
 interface MetricCell {
   label: string
@@ -13,46 +19,17 @@ interface MetricCell {
   color?: string
 }
 
-function pct(value: number | null | undefined): string {
-  return value === null || value === undefined ? '-' : formatPercent(value)
-}
-
 function buildCells(metrics: ApiTradingAgentReviewMetrics): MetricCell[] {
-  return [
-    { label: '区间收益', value: pct(metrics.returnPct), color: changeHex(metrics.returnPct) },
-    {
-      label: '年化收益',
-      value: pct(metrics.annualizedReturnPct),
-      color: changeHex(metrics.annualizedReturnPct),
-    },
-    {
-      label: '最大回撤',
-      value:
-        metrics.maxDrawdownPct === null
-          ? '-'
-          : `-${formatNumber(metrics.maxDrawdownPct)}%`,
-      color: metrics.maxDrawdownPct === null ? undefined : fallHex(),
-    },
-    {
-      label: '超额收益',
-      value: pct(metrics.excessReturnPct),
-      color: changeHex(metrics.excessReturnPct),
-    },
-    {
-      label: '沪深300',
-      value: pct(metrics.benchmarkReturnPct),
-      color: changeHex(metrics.benchmarkReturnPct),
-    },
-    { label: '胜率', value: pct(metrics.winRatePct) },
-    {
-      label: '盈亏比',
-      value:
-        metrics.profitLossRatio === null ? '-' : formatNumber(metrics.profitLossRatio),
-    },
-    { label: '换手率', value: pct(metrics.turnoverRatePct) },
-    { label: '执行偏差', value: pct(metrics.executionDeviationPct) },
-    { label: '卖出笔数', value: String(metrics.sellCount) },
-  ]
+  const cells: MetricCell[] = REVIEW_METRIC_ROWS.map((row: ReviewMetricRow) => {
+    const value = row.pick(metrics)
+    return {
+      label: row.label,
+      value: formatMetricValue(row, value),
+      color: metricColor(value, row.tone),
+    }
+  })
+  cells.push({ label: '卖出笔数', value: String(metrics.sellCount) })
+  return cells
 }
 
 export function ReviewMetricsGrid({ metrics }: { metrics: ApiTradingAgentReviewMetrics }) {

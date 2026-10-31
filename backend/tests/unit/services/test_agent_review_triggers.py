@@ -19,18 +19,18 @@ _TRADE_DATE = date(2026, 7, 17)
 
 def _patch_env(*, trading_day: bool = True, agent_missing: bool = False):
     """返回 (打桩栈, mocks)：日历/Agent 注册表/窗口预检/派发器全部替身。"""
-    day_check = AsyncMock(return_value=trading_day)
     get_agent = AsyncMock(return_value=MagicMock(agent_key="short-line"))
     if agent_missing:
         get_agent.side_effect = NotFoundError("交易 Agent ghost 不存在")
     resolve_window = AsyncMock(return_value=MagicMock(end=_TRADE_DATE))
+    if not trading_day:
+        resolve_window.side_effect = NonTradingDayError(
+            f"{_TRADE_DATE.isoformat()} 不是交易日，复盘只对交易日有效"
+        )
     ensure_ready = AsyncMock()
     dispatch = AsyncMock(return_value=MagicMock(id=42, celery_task_id="celery-42"))
 
     stack = ExitStack()
-    stack.enter_context(
-        patch("app.services.trading.agent_review_triggers.is_trading_day", day_check)
-    )
     stack.enter_context(patch("app.services.trading.agent_registry.get_agent", get_agent))
     stack.enter_context(
         patch(
@@ -48,7 +48,6 @@ def _patch_env(*, trading_day: bool = True, agent_missing: bool = False):
         patch("collector.runtime.dispatcher.dispatch_collector_task", dispatch)
     )
     return stack, {
-        "day_check": day_check,
         "get_agent": get_agent,
         "resolve_window": resolve_window,
         "ensure_ready": ensure_ready,
@@ -94,13 +93,15 @@ class TestEnqueueReviewGeneration:
             "period": "day",
             "regenerate": False,
         }
-        mocks["day_check"].assert_not_awaited()
+        mocks["resolve_window"].assert_awaited_once()
 
     @pytest.mark.asyncio
     async def test_rejects_unknown_period_before_dispatch(self) -> None:
+        from app.core.exceptions import BadRequestError
+
         stack, mocks = _patch_env()
         with stack:
-            with pytest.raises(ValueError, match="未知复盘周期"):
+            with pytest.raises(BadRequestError, match="未知复盘周期"):
                 await enqueue_review_generation(
                     MagicMock(), "short-line", period="decade"
                 )
@@ -148,7 +149,10 @@ class TestEnqueueReviewGeneration:
             "start_date": "2026-06-01",
             "end_date": "2026-07-17",
         }
-        mocks["day_check"].assert_not_awaited()
+        request = mocks["resolve_window"].await_args.args[1]
+        assert request.period is None
+        assert request.start_date == date(2026, 6, 1)
+        assert request.end_date == date(2026, 7, 17)
 
     @pytest.mark.asyncio
     async def test_rejects_unpaired_range(self) -> None:

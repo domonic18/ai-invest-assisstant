@@ -9,9 +9,8 @@ import type EChartsReactCore from 'echarts-for-react/lib/core'
 import {
   type PriceRangeBar,
   computePriceAxisRange,
-  DEFAULT_ZOOM_END,
-  DEFAULT_ZOOM_START,
-} from './stockChartView/klineOption'
+} from './chartLayout'
+import { DEFAULT_ZOOM_END, DEFAULT_ZOOM_START } from './stockChartView/klineOption'
 
 interface DataZoomRange {
   start?: number
@@ -29,6 +28,8 @@ interface ZoomableChartData {
 export interface DataZoomRescaleOptions {
   /** 缩放/平移后上抛可见窗口 [startIdx, endIdx]；图例取值锚定 endIdx（尾 bar）。 */
   onWindowChange?: (startIdx: number, endIdx: number) => void
+  /** false = 只上报窗口不重算纵轴（无 OHLC 的收盘线由 scale 自适应）。 */
+  rescale?: boolean
 }
 
 export function useDataZoomYAxisRescale(
@@ -68,17 +69,19 @@ export function useDataZoomYAxisRescale(
       len - 1,
       Math.max(startIdx, toIndex(dz.endValue, dz.end, len - 1)),
     )
-    const { yMin, yMax, pctMin, pctMax } = computePriceAxisRange(
-      chartData.bars,
-      startIdx,
-      endIdx,
-    )
-    chart.setOption({
-      yAxis: [
-        { min: yMin, max: yMax },
-        { min: pctMin, max: pctMax },
-      ],
-    })
+    if (options?.rescale !== false) {
+      const { yMin, yMax, pctMin, pctMax } = computePriceAxisRange(
+        chartData.bars,
+        startIdx,
+        endIdx,
+      )
+      chart.setOption({
+        yAxis: [
+          { min: yMin, max: yMax },
+          { min: pctMin, max: pctMax },
+        ],
+      })
+    }
     options?.onWindowChange?.(startIdx, endIdx)
   }
 

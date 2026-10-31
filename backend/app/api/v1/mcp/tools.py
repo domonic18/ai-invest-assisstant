@@ -7,7 +7,7 @@
 """
 
 from datetime import date
-from typing import Any, cast
+from typing import Any
 
 from mcp.server.auth.middleware.auth_context import get_access_token
 from mcp.server.fastmcp import FastMCP
@@ -265,16 +265,18 @@ async def get_trading_review(
     """
     _require_scope(API_KEY_SCOPE_TRADING_READ)
 
-    if scope not in ("current", "previous"):
-        return {"error": f"无效的 scope：{scope}（应为 current 或 previous）"}
-    if period is not None and period not in (
-        "day",
-        "week",
-        "month",
-        "quarter",
-        "half_year",
-        "year",
-    ):
+    from app.services.trading.agent_review_periods import (
+        DEFAULT_REVIEW_PERIOD,
+        REVIEW_PERIODS,
+    )
+    from app.services.trading.agent_review_window import REVIEW_WINDOW_SCOPES
+
+    if scope not in REVIEW_WINDOW_SCOPES:
+        return {
+            "error": f"无效的 scope：{scope}"
+            f"（应为 {' 或 '.join(REVIEW_WINDOW_SCOPES)}）"
+        }
+    if period is not None and period not in REVIEW_PERIODS:
         return {"error": f"无效的 period：{period}"}
 
     parsed_date, date_error = _parse_date(trade_date)
@@ -291,22 +293,21 @@ async def get_trading_review(
 
     from app.core.exceptions import AppError
     from app.services.trading import agent_review_service
-    from app.services.trading.agent_review_periods import ReviewPeriod
-    from app.services.trading.agent_review_service import ReviewWindowScope
 
     key = _agent_key(agent_key)
-    resolved_period = period or (None if parsed_start is not None else "day")
+    resolved_period = period or (
+        None if parsed_start is not None else DEFAULT_REVIEW_PERIOD
+    )
     try:
+        request = agent_review_service.ReviewWindowRequest.from_values(
+            period=resolved_period,
+            trade_date=parsed_date,
+            scope=scope,
+            start_date=parsed_start,
+            end_date=parsed_end,
+        )
         async with AsyncSessionLocal() as session:
-            content = await agent_review_service.get_review(
-                session,
-                key,
-                period=cast(ReviewPeriod | None, resolved_period),
-                trade_date=parsed_date,
-                scope=cast(ReviewWindowScope, scope),
-                start_date=parsed_start,
-                end_date=parsed_end,
-            )
+            content = await agent_review_service.get_review(session, key, request)
     except AppError as exc:
         return {"error": str(exc)}
     if content is None:

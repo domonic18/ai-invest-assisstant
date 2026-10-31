@@ -136,10 +136,10 @@ class TestGenerateReviewTool:
             "regenerate": True,
             "cached": False,
         }
-        kwargs = generate.await_args.kwargs
-        assert kwargs["period"] == "quarter"
-        assert kwargs["regenerate"] is True
-        assert kwargs["trigger"] == "manual"
+        request = generate.await_args.args[2]
+        assert request.period == "quarter"
+        assert generate.await_args.kwargs["regenerate"] is True
+        assert generate.await_args.kwargs["trigger"] == "manual"
 
     @pytest.mark.asyncio
     async def test_rejects_invalid_trade_date_before_generating(self) -> None:
@@ -198,11 +198,11 @@ class TestGenerateReviewTool:
             )
 
         assert out["period"] == "month"
-        kwargs = generate.await_args.kwargs
-        assert kwargs["period"] is None
-        assert kwargs["start_date"] == date(2026, 6, 1)
-        assert kwargs["end_date"] == date(2026, 7, 17)
-        assert kwargs["scope"] == "previous"
+        request = generate.await_args.args[2]
+        assert request.period is None
+        assert request.start_date == date(2026, 6, 1)
+        assert request.end_date == date(2026, 7, 17)
+        assert request.scope == "previous"
 
     @pytest.mark.asyncio
     async def test_rejects_unpaired_range(self) -> None:
@@ -246,10 +246,10 @@ class TestGetReviewTool:
             out = await tool.ainvoke({"period": "week", "scope": "previous"})
 
         assert out == {"period": "week"}
-        kwargs = get_review.await_args.kwargs
-        assert kwargs["period"] == "week"
-        assert kwargs["scope"] == "previous"
-        assert kwargs["start_date"] is None
+        request = get_review.await_args.args[2]
+        assert request.period == "week"
+        assert request.scope == "previous"
+        assert request.start_date is None
 
     @pytest.mark.asyncio
     async def test_custom_range_passes_dates_without_period(self) -> None:
@@ -263,10 +263,10 @@ class TestGetReviewTool:
             )
 
         assert out["not_ready"] is True
-        kwargs = get_review.await_args.kwargs
-        assert kwargs["period"] is None
-        assert kwargs["start_date"] == date(2026, 6, 1)
-        assert kwargs["end_date"] == date(2026, 7, 17)
+        request = get_review.await_args.args[2]
+        assert request.period is None
+        assert request.start_date == date(2026, 6, 1)
+        assert request.end_date == date(2026, 7, 17)
 
     @pytest.mark.asyncio
     async def test_rejects_invalid_date(self) -> None:

@@ -70,7 +70,7 @@ class TestCadenceDue:
                 AsyncMock(return_value=True),
             ),
             patch(
-                "app.services.trading.agent_review_service.is_last_trading_day_of_week",
+                "app.services.trading.agent_overview_schedule.is_last_trading_day_of_week",
                 AsyncMock(return_value=False),
             ),
         ):

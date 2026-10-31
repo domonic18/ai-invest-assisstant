@@ -43,6 +43,7 @@ import {
 } from '@/api/tradingAgent'
 import { queryKeys } from '@/hooks/queryKeys'
 import { isMarketOpen } from '@/pages/PaperTrade/tradingRules'
+import { apiErrorStatus } from '@/utils/errorMessage'
 
 /** 全部注册 Agent 的总览聚合（贾维斯总览页传 refetchInterval 轮询）。 */
 export function useAgentOverview(options?: {
@@ -138,15 +139,31 @@ export function useTradingAgentReview(
   return useQuery({
     queryKey: queryKeys.tradingAgent.review(agentKey, window),
     queryFn: () => fetchTradingAgentReview(agentKey, window),
-    retry: (failureCount, error) => {
-      const status = (error as { response?: { status?: number } }).response?.status
-      return status !== 404 && failureCount < 2
-    },
+    retry: (failureCount, error) => apiErrorStatus(error) !== 404 && failureCount < 2,
   })
 }
 
-/** 采集日志是否已到终态（终态停止轮询，交由订阅方刷新）。 */
-const REVIEW_TERMINAL_STATES = new Set(['success', 'partial', 'failed', 'skipped'])
+/** 复盘生成任务终态（终态停止轮询，交由订阅方刷新）。 */
+export const REVIEW_TERMINAL_STATES: ReadonlySet<string> = new Set([
+  'success',
+  'partial',
+  'failed',
+  'skipped',
+])
+
+/** 视为生成成功的终态（部分成功也刷新缓存）。 */
+export const REVIEW_SUCCESS_STATES: ReadonlySet<string> = new Set(['success', 'partial'])
+
+export function isReviewTerminalStatus(status: string | null | undefined): boolean {
+  return status != null && REVIEW_TERMINAL_STATES.has(status)
+}
+
+export function isReviewSuccessStatus(status: string | null | undefined): boolean {
+  return status != null && REVIEW_SUCCESS_STATES.has(status)
+}
+
+/** 复盘生成任务状态轮询间隔（分钟级生成，3s 足够及时且不压服务）。 */
+export const REVIEW_GENERATION_POLL_MS = 3000
 
 /** 复盘生成任务状态（派发后轮询采集日志，终态自动停止）。 */
 export function useReviewGenerationStatus(logId: number | null) {
@@ -154,11 +171,10 @@ export function useReviewGenerationStatus(logId: number | null) {
     queryKey: queryKeys.tradingAgent.generationStatus(logId),
     queryFn: () => fetchReviewGenerationStatus(logId as number),
     enabled: logId != null,
-    refetchInterval: (query) => {
-      const status = query.state.data?.collector_status
-      if (status && REVIEW_TERMINAL_STATES.has(status)) return false
-      return 3000
-    },
+    refetchInterval: (query) =>
+      isReviewTerminalStatus(query.state.data?.collector_status)
+        ? false
+        : REVIEW_GENERATION_POLL_MS,
   })
 }
 

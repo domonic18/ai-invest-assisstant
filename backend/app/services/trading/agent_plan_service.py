@@ -33,13 +33,11 @@ from app.services.trading.agent_plan_schemas import (
     PlanGenerateResult,
     PlanTradePlanItem,
 )
+from app.services.trading.agent_review_periods import CADENCE_PERIODS
 from app.services.trading.agent_run_recorder import AgentRunRecorder
 from app.skills import load_skill_prompt
 
 logger = structlog.get_logger(__name__)
-
-#: plan_cadence（注册行）→ agent_run.period 列映射（day/week/month）
-_CADENCE_PERIODS = {"daily": "day", "weekly": "week", "monthly": "month"}
 
 # 价格体检阈值（确定性校验，非模型判断；治幻觉价格的事后兜底，供给侧锚点
 # 由 agent_plan_input.price_anchors 承担）
@@ -289,7 +287,7 @@ async def generate_daily_plan(
     recorder = AgentRunRecorder(
         agent_key=agent.agent_key,
         kind="plan",
-        period=_CADENCE_PERIODS.get(agent.plan_cadence),
+        period=CADENCE_PERIODS.get(agent.plan_cadence),
         trigger=trigger,
         trade_date=resolved,
         collector_log_id=collector_log_id,

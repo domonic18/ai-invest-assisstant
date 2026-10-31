@@ -62,7 +62,7 @@ export function IndexDetail() {
 
       <Card variant="borderless">
         {klineBranch ? (
-          <IndexChartPanel code={code} noIntraday={!INTRADAY_CODES.has(code)} />
+          <IndexChartPanel code={code} noIntraday={!INTRADAY_CODES.has(code)} showSlider />
         ) : (
           <GlobalIndexKlinePanel code={code} decimals={isBond ? 3 : 2} />
         )}

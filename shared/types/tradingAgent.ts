@@ -238,11 +238,12 @@ export interface ApiTradingAgentDates {
   reviewDates: Partial<Record<TradingReviewPeriod, string[]>>
 }
 
-/** 计划状态机（active → triggered → executed / expired / cancelled / invalid）。 */
+/** 计划状态机（active → triggered → executed / failed / expired / cancelled / invalid）。 */
 export type TradingAgentPlanStatus =
   | 'active'
   | 'triggered'
   | 'executed'
+  | 'failed'
   | 'expired'
   | 'cancelled'
   | 'invalid'

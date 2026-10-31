@@ -3,7 +3,8 @@
 下单/撤单一律经 ``execute_agent_order``（风控硬校验与 run 留痕在彼处）；
 ``_execute_candidate``/``execute_tail_stop`` 把异常路径收敛为
 (action, suppression_reason, extra) 返回，绝不中断 tick 主链路；
-``_reconcile_pending_orders`` 尽力回填未结委托（失败下一拍重试）。
+``_reconcile_pending_orders`` 尽力回填未结委托并按委托终态收敛计划
+（执行失败下一拍重试）。
 """
 
 from datetime import datetime
@@ -178,6 +179,12 @@ async def _account_or_none(
 #: 状态字典）；不在终态集（含未知码）即视为未结，需盘中回填
 _ORDER_TERMINAL_STATUSES = (3, 4, 5, 8)
 
+#: 有实际成交量的委托终态（已成/部撤）：关联计划据此回填 executed
+_FILLED_ORDER_STATUSES = (3, 4)
+
+#: 无成交的委托终态（已撤/已拒）：关联计划回填 failed
+_UNFILLED_TERMINAL_STATUSES = (5, 8)
+
 
 async def _has_pending_orders(session: AsyncSession, account: PaperTradeAccount) -> bool:
     """当日 agent 来源委托是否仍有未结（非终态）——盘中回填的触发条件。"""
@@ -194,22 +201,78 @@ async def _has_pending_orders(session: AsyncSession, account: PaperTradeAccount)
     return bool(pending)
 
 
+async def _advance_triggered_plans(
+    session: AsyncSession,
+    agent_key: str,
+    account: PaperTradeAccount,
+    *,
+    order_statuses: tuple[int, ...],
+    plan_status: str,
+) -> int:
+    """把委托终态落在 ``order_statuses`` 的 triggered 计划推进到 ``plan_status``。"""
+    terminal_cl_ord_ids = select(PaperTradeOrder.cl_ord_id).where(
+        PaperTradeOrder.paper_trade_account_id == account.id,
+        PaperTradeOrder.order_source == account_service.ORDER_SOURCE_AGENT,
+        PaperTradeOrder.status.in_(order_statuses),
+    )
+    result = await session.execute(
+        update(AgentTradePlan)
+        .where(
+            AgentTradePlan.agent_key == agent_key,
+            AgentTradePlan.status == "triggered",
+            AgentTradePlan.triggered_cl_ord_id.in_(terminal_cl_ord_ids),
+        )
+        .values(status=plan_status, updated_at=utc_now())
+    )
+    return int(getattr(result, "rowcount", 0) or 0)
+
+
+async def _backfill_plan_states(
+    session: AsyncSession, agent_key: str, account: PaperTradeAccount
+) -> None:
+    """委托终态回填计划状态机：已成/部撤 → executed；已撤/已拒 → failed。
+
+    ``_execute_candidate`` 只能推进到 triggered（柜台受理即返回），成交终态
+    要等委托回填后才知道；不补齐则 executed/failed 永不可达，计划长期停在
+    triggered（前端陈旧显示，且对话内因 triggered 拒绝对该标的改单）。
+    """
+    advanced = await _advance_triggered_plans(
+        session,
+        agent_key,
+        account,
+        order_statuses=_FILLED_ORDER_STATUSES,
+        plan_status="executed",
+    )
+    advanced += await _advance_triggered_plans(
+        session,
+        agent_key,
+        account,
+        order_statuses=_UNFILLED_TERMINAL_STATUSES,
+        plan_status="failed",
+    )
+    if advanced:
+        await session.commit()
+
+
 async def _reconcile_pending_orders(session: AsyncSession, agent: TradingAgent) -> None:
-    """未结委托盘中回填：触发既有单账户即时同步，成交终态 ≤ 一拍 tick。
+    """未结委托盘中回填 + 计划状态机收敛：成交终态 ≤ 一拍 tick。
 
     下单走轻量落库（只写已报），成交终态原依赖 16:00 盘后全量同步——
     盘中用户最长 2 小时看到「已报」未成交。当日仍有未结的 agent 委托时
-    调 ``sync_account_now`` 回填委托/成交/资金；16:00 全量 sync 仍是
-    权威对账。同步异常（含 16:00 批量同步并发锁冲突）吞掉记日志，
-    下一拍重试，绝不影响 tick 主链路。
+    调 ``sync_account_now`` 回填委托/成交/资金；随后无论有无未结委托都
+    按委托终态收敛计划（已成/部撤 → executed，已撤/已拒 → failed；静默日
+    同样要收敛）。16:00 全量 sync 仍是权威对账。同步异常（含 16:00 批量
+    同步并发锁冲突）吞掉记日志，下一拍重试，绝不影响 tick 主链路。
     """
     try:
         account = await _account_or_none(session, agent.agent_key)
-        if account is None or not await _has_pending_orders(session, account):
+        if account is None:
             return
-        from app.services.trading.paper_trade_sync import sync_account_now
+        if await _has_pending_orders(session, account):
+            from app.services.trading.paper_trade_sync import sync_account_now
 
-        await sync_account_now(session, account)
+            await sync_account_now(session, account)
+        await _backfill_plan_states(session, agent.agent_key, account)
     except Exception as exc:  # noqa: BLE001 —— 尽力而为，失败下一拍重试
         logger.warning(
             "agent_order_backfill_failed", agent_key=agent.agent_key, error=str(exc)

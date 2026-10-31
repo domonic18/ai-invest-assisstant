@@ -176,14 +176,14 @@ class TestAgentPlanCalibrationCollector:
 
     @pytest.mark.asyncio
     async def test_skipped_reason_short_summary_counts_zero(self) -> None:
-        """无当日计划的真实短形状（仅 skipped_reason，无计数键）不能让汇总崩溃。"""
+        """无生效计划的真实短形状（仅 skipped_reason，无计数键）不能让汇总崩溃。"""
 
         async def _calibrate(_s, agent, *_args, **kwargs):
             return {
                 "cached": False,
                 "window": "1320",
                 "total": 0,
-                "skipped_reason": "无当日活跃计划",
+                "skipped_reason": "无生效计划集",
             }
 
         with _activate(_patch_env(agents=[_agent("short-line")], calibrate=AsyncMock(side_effect=_calibrate))):
@@ -191,7 +191,7 @@ class TestAgentPlanCalibrationCollector:
 
         assert result.status == CollectStatus.SUCCESS
         assert result.items_stored == 0
-        assert "无当日活跃计划" in (result.message or "")
+        assert "无生效计划集" in (result.message or "")
 
     @pytest.mark.asyncio
     async def test_single_agent_error_is_partial(self) -> None:

@@ -11,17 +11,27 @@ import math
 import time
 from typing import Any, ClassVar
 
+import structlog
+from curl_cffi.requests import exceptions as cffi_exceptions
+
 from collector.core.async_helpers import run_in_thread
 from collector.core.base import PostgresCollector
 from collector.core.http_client import eastmoney_get_chrome
 from collector.core.parsing import to_optional_str
 from collector.spiders.eastmoney_common import push2_base_url
 
+logger = structlog.get_logger(__name__)
+
 _CLIST_PATH = "/api/qt/clist/get"
 _PAGE_SIZE = 100
 _FS_HK_STOCKS = "m:116+t:3"
 # f12 代码（5 位零填充） f14 名称 f100 东财行业
 _FIELDS = "f12,f14,f100"
+# push2 clist 分页连发会触发主机级限流（curl 56 连接被重置）：页间留额外间隔，
+# 单页失败按指数退避重试，避免一页抖动整轮全市场拉取作废
+_PAGE_INTERVAL_SECONDS = 0.5
+_PAGE_RETRY_ATTEMPTS = 3
+_PAGE_RETRY_BACKOFF_SECONDS = 2.0
 
 
 class EastmoneyHkStockListCollector(PostgresCollector):
@@ -35,8 +45,23 @@ class EastmoneyHkStockListCollector(PostgresCollector):
 
     def _request_page(self, params: dict[str, Any]) -> dict[str, Any]:
         url = f"{push2_base_url(self.config)}{_CLIST_PATH}"
-        response = eastmoney_get_chrome(url, params=params)
-        return response.json().get("data") or {}
+        last_exc: Exception | None = None
+        for attempt in range(_PAGE_RETRY_ATTEMPTS):
+            try:
+                response = eastmoney_get_chrome(url, params=params)
+                return response.json().get("data") or {}
+            except cffi_exceptions.RequestException as exc:
+                last_exc = exc
+                logger.warning(
+                    "hk_stock_list_page_retry",
+                    page=params.get("pn"),
+                    attempt=attempt + 1,
+                    error=str(exc),
+                )
+                if attempt + 1 < _PAGE_RETRY_ATTEMPTS:
+                    time.sleep(_PAGE_RETRY_BACKOFF_SECONDS * (attempt + 1))
+        assert last_exc is not None
+        raise last_exc
 
     def _fetch_all(self) -> list[dict[str, Any]]:
         params: dict[str, Any] = {
@@ -56,6 +81,7 @@ class EastmoneyHkStockListCollector(PostgresCollector):
         total = int(data.get("total") or 0)
         rows = list(data.get("diff") or [])
         for page in range(2, math.ceil(total / _PAGE_SIZE) + 1):
+            time.sleep(_PAGE_INTERVAL_SECONDS)
             params["pn"] = page
             rows.extend(self._request_page(params).get("diff") or [])
         return rows

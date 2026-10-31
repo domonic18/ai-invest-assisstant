@@ -39,6 +39,7 @@ def _enter_common_patches(
     now_hour: int = 11,
     fresh: set[str],
     rerun: AsyncMock | None = None,
+    watchlist: list[str] | None = None,
 ) -> AsyncMock:
     """登记公共 patch：日历/时钟/自选股/日K存在性/会话工厂；返回 rerun mock。"""
     stack.enter_context(
@@ -61,7 +62,7 @@ def _enter_common_patches(
     stack.enter_context(
         patch(
             "collector.spiders.kline_freshness.KlineFreshnessCollector._watchlist_codes",
-            new=AsyncMock(return_value=_WATCHLIST),
+            new=AsyncMock(return_value=_WATCHLIST if watchlist is None else watchlist),
         )
     )
 
@@ -180,3 +181,66 @@ class TestKlineFreshnessCollector:
         assert result.status == CollectStatus.PARTIAL
         assert any("sh510300" in err for err in result.errors)
         assert "expected_late" not in result.metadata
+
+    @pytest.mark.asyncio
+    async def test_hk_watchlist_routed_to_hk_kline(self) -> None:
+        """港股自选股缺失走 hk-kline 自愈，而非跳过港股的新浪 A 股 K 线任务。"""
+        collector = KlineFreshnessCollector(_CFG)
+
+        with ExitStack() as stack:
+            rerun = _enter_common_patches(
+                stack,
+                now_hour=21,
+                fresh=_BASE_FRESH | {"002900"},
+                watchlist=["002900", "600519", "00700"],
+            )
+            result = await collector.run()
+
+        rerun.assert_called_once_with("hk-kline", ["00700"])
+        assert result.status == CollectStatus.PARTIAL
+        assert any("00700" in err for err in result.errors)
+
+    @pytest.mark.asyncio
+    async def test_hk_missing_before_ready_is_expected_late(self) -> None:
+        """18:30 档港股当日 bar 尚未发布：记预期迟到，不自愈不升 PARTIAL。"""
+        collector = KlineFreshnessCollector(_CFG)
+
+        with ExitStack() as stack:
+            rerun = _enter_common_patches(
+                stack,
+                now_hour=18,
+                fresh=_BASE_FRESH | {"002900"},
+                watchlist=["002900", "600519", "00700"],
+            )
+            result = await collector.run()
+
+        assert result.status == CollectStatus.SKIPPED
+        assert result.errors == []
+        assert result.metadata["expected_late"] == ["00700"]
+        rerun.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_hk_routing_heals_after_ready(self) -> None:
+        """19:30 后 hk-kline 自愈生效：缺失港股补齐为 SUCCESS。"""
+        collector = KlineFreshnessCollector(_CFG)
+        fresh = _BASE_FRESH | {"002900"}
+        rerun = AsyncMock()
+
+        async def rerun_marks_fresh(task_name: str, symbols: list[str]) -> None:
+            assert task_name == "hk-kline"
+            fresh.update(symbols)
+
+        rerun.side_effect = rerun_marks_fresh
+
+        with ExitStack() as stack:
+            _enter_common_patches(
+                stack,
+                now_hour=21,
+                fresh=fresh,
+                rerun=rerun,
+                watchlist=["002900", "600519", "00700"],
+            )
+            result = await collector.run()
+
+        assert result.status == CollectStatus.SUCCESS
+        assert result.errors == []

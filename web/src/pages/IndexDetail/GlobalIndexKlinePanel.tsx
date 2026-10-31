@@ -88,7 +88,9 @@ export function GlobalIndexKlinePanel({ code, decimals = 2 }: GlobalIndexKlinePa
           bars={data.bars}
           maConfigs={maConfigs}
           height={340}
-          defaultVisibleBars={period === 'daily' ? 120 : undefined}
+          defaultVisibleBars={period === 'daily' || period === 'weekly' ? 120 : undefined}
+          valueDecimals={decimals}
+          showSlider
           drawingTarget={
             period === 'quarterly' || period === 'yearly'
               ? undefined

@@ -170,6 +170,8 @@ async def run_tick(
         candidates = [row for row in evaluated if row[2].verdict == L0_TRIGGERED]
         counters["evaluated"] += len(evaluated)
         counters["candidates"] += len(candidates)
+        # 空评判集（静默日）也要对账：委托成交终态回填计划状态机不依赖本拍评判
+        await _reconcile_pending_orders(session, agent)
         if not evaluated:
             continue
 
@@ -262,7 +264,6 @@ async def run_tick(
                 )
             )
         await session.commit()
-        await _reconcile_pending_orders(session, agent)
     return counters
 
 

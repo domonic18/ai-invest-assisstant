@@ -10,13 +10,20 @@ from pydantic import ValidationError
 
 from app.services.market.trade_calendar_service import NonTradingDayError
 from app.services.review.market_review_service import ReviewInputDataNotReadyError
-from app.services.trading import agent_review_service
+from app.services.trading import (
+    agent_review_cache,
+    agent_review_inputs,
+    agent_review_llm,
+    agent_review_periods,
+    agent_review_service,
+)
 from app.services.trading.agent_review_content import PaperTradeReviewContent
 from app.services.trading.agent_review_periods import ReviewWindow
 from app.services.trading.agent_review_service import (
     PaperTradeReviewLockedError,
     resolve_window,
 )
+from app.services.trading.agent_review_window import ReviewWindowRequest
 from app.services.trading.errors import AgentAccountNotDesignatedError
 
 _TRADE_DATE = date(2026, 7, 15)  # Wednesday
@@ -41,11 +48,19 @@ def _stub_window_services():
     metrics.to_dict.return_value = {"period": "day", "notes": []}
     with (
         patch(
-            "app.services.trading.agent_review_service.resolve_review_window",
+            "app.services.market.trade_calendar_service.is_trading_day",
+            AsyncMock(return_value=True),
+        ),
+        patch(
+            "app.services.trading.agent_review_window.resolve_review_window",
             AsyncMock(side_effect=lambda _s, period, _d: _window(period)),
         ),
         patch(
-            "app.services.trading.agent_review_service.compute_window_metrics",
+            "app.services.trading.agent_review_generate.compute_window_metrics",
+            AsyncMock(return_value=metrics),
+        ),
+        patch(
+            "app.services.trading.agent_review_queries.compute_window_metrics",
             AsyncMock(return_value=metrics),
         ),
     ):
@@ -138,7 +153,11 @@ class TestGetReview:
         ):
             assert (
                 await agent_review_service.get_review(
-                    AsyncMock(), "short-line", period="day", trade_date=_TRADE_DATE
+                    AsyncMock(),
+                    "short-line",
+                    ReviewWindowRequest.from_values(
+                        period="day", trade_date=_TRADE_DATE
+                    ),
                 )
                 is None
             )
@@ -161,7 +180,11 @@ class TestGetReview:
         ):
             for period in ("day", "week"):
                 await agent_review_service.get_review(
-                    AsyncMock(), "short-line", period=period, trade_date=_TRADE_DATE
+                    AsyncMock(),
+                    "short-line",
+                    ReviewWindowRequest.from_values(
+                        period=period, trade_date=_TRADE_DATE
+                    ),
                 )
                 hashes[period] = mock_load.await_args.kwargs["input_hash"]
 
@@ -181,7 +204,9 @@ class TestGetReview:
             ),
         ):
             content = await agent_review_service.get_review(
-                AsyncMock(), "short-line", period="day", trade_date=_TRADE_DATE
+                AsyncMock(),
+                "short-line",
+                ReviewWindowRequest.from_values(period="day", trade_date=_TRADE_DATE),
             )
 
         assert content is not None
@@ -216,13 +241,14 @@ class TestResolveRequestedWindow:
     async def test_custom_range_maps_framework_by_span(self) -> None:
         window = _window_over("month", date(2026, 6, 1), date(2026, 7, 15))
         with patch(
-            "app.services.trading.agent_review_service.resolve_custom_window",
+            "app.services.trading.agent_review_window.resolve_custom_window",
             AsyncMock(return_value=window),
         ) as custom:
             resolved = await agent_review_service.resolve_requested_window(
                 AsyncMock(),
-                start_date=date(2026, 6, 1),
-                end_date=date(2026, 7, 15),
+                ReviewWindowRequest.from_values(
+                    start_date=date(2026, 6, 1), end_date=date(2026, 7, 15)
+                ),
             )
 
         assert resolved is window
@@ -233,14 +259,16 @@ class TestResolveRequestedWindow:
     async def test_explicit_range_keeps_requested_period(self) -> None:
         window = _window_over("week", date(2026, 6, 1), date(2026, 7, 15))
         with patch(
-            "app.services.trading.agent_review_service.resolve_explicit_window",
+            "app.services.trading.agent_review_window.resolve_explicit_window",
             AsyncMock(return_value=window),
         ) as explicit:
             resolved = await agent_review_service.resolve_requested_window(
                 AsyncMock(),
-                period="week",
-                start_date=date(2026, 6, 1),
-                end_date=date(2026, 7, 15),
+                ReviewWindowRequest.from_values(
+                    period="week",
+                    start_date=date(2026, 6, 1),
+                    end_date=date(2026, 7, 15),
+                ),
             )
 
         assert resolved is window
@@ -250,11 +278,14 @@ class TestResolveRequestedWindow:
     async def test_previous_scope_uses_previous_window(self) -> None:
         window = _window_over("week", date(2026, 7, 6), date(2026, 7, 10))
         with patch(
-            "app.services.trading.agent_review_service.resolve_previous_window",
+            "app.services.trading.agent_review_window.resolve_previous_window",
             AsyncMock(return_value=window),
         ) as previous:
             resolved = await agent_review_service.resolve_requested_window(
-                AsyncMock(), period="week", trade_date=_TRADE_DATE, scope="previous"
+                AsyncMock(),
+                ReviewWindowRequest.from_values(
+                    period="week", trade_date=_TRADE_DATE, scope="previous"
+                ),
             )
 
         assert resolved is window
@@ -267,42 +298,36 @@ class TestResolveRequestedWindow:
             "app.services.market.trade_calendar_service.resolve_latest_trade_date",
             latest,
         ), patch(
-            "app.services.trading.agent_review_service.resolve_review_window",
+            "app.services.trading.agent_review_window.resolve_review_window",
             AsyncMock(return_value=_window("day")),
         ) as current:
             await agent_review_service.resolve_requested_window(
-                AsyncMock(), period="day"
+                AsyncMock(), ReviewWindowRequest.from_values(period="day")
             )
 
         latest.assert_awaited_once()
         assert current.await_args.args[1:] == ("day", _TRADE_DATE)
 
-    @pytest.mark.asyncio
-    async def test_rejects_unpaired_range(self) -> None:
+    def test_rejects_unpaired_range(self) -> None:
         from app.core.exceptions import BadRequestError
 
         with pytest.raises(BadRequestError, match="须同时提供"):
-            await agent_review_service.resolve_requested_window(
-                AsyncMock(), period="day", start_date=date(2026, 6, 1)
-            )
+            ReviewWindowRequest.from_values(period="day", start_date=date(2026, 6, 1))
 
-    @pytest.mark.asyncio
-    async def test_rejects_reversed_range(self) -> None:
+    def test_rejects_reversed_range(self) -> None:
         from app.core.exceptions import BadRequestError
 
         with pytest.raises(BadRequestError, match="早于"):
-            await agent_review_service.resolve_requested_window(
-                AsyncMock(),
+            ReviewWindowRequest.from_values(
                 start_date=date(2026, 7, 15),
                 end_date=date(2026, 6, 1),
             )
 
-    @pytest.mark.asyncio
-    async def test_requires_period_or_range(self) -> None:
+    def test_requires_period_or_range(self) -> None:
         from app.core.exceptions import BadRequestError
 
         with pytest.raises(BadRequestError, match="缺少复盘周期"):
-            await agent_review_service.resolve_requested_window(AsyncMock())
+            ReviewWindowRequest.from_values()
 
     @pytest.mark.asyncio
     async def test_rejects_empty_explicit_range(self) -> None:
@@ -317,13 +342,14 @@ class TestResolveRequestedWindow:
             trading_days=(),
         )
         with patch(
-            "app.services.trading.agent_review_service.resolve_custom_window",
+            "app.services.trading.agent_review_window.resolve_custom_window",
             AsyncMock(return_value=empty),
         ), pytest.raises(BadRequestError, match="没有交易日"):
             await agent_review_service.resolve_requested_window(
                 AsyncMock(),
-                start_date=date(2026, 10, 5),
-                end_date=date(2026, 10, 7),
+                ReviewWindowRequest.from_values(
+                    start_date=date(2026, 10, 5), end_date=date(2026, 10, 7)
+                ),
             )
 
 
@@ -342,7 +368,7 @@ class TestCompareReviews:
 
         with (
             patch(
-                "app.services.trading.agent_review_service.resolve_requested_window",
+                "app.services.trading.agent_review_queries.resolve_requested_window",
                 AsyncMock(side_effect=[window_a, window_b]),
             ),
             patch(
@@ -350,11 +376,11 @@ class TestCompareReviews:
                 AsyncMock(return_value=MagicMock(id=7)),
             ),
             patch(
-                "app.services.trading.agent_review_service._load_cached",
+                "app.services.trading.agent_review_queries.load_cached",
                 AsyncMock(return_value=MagicMock()),
             ),
             patch(
-                "app.services.trading.agent_review_service.compute_window_metrics",
+                "app.services.trading.agent_review_queries.compute_window_metrics",
                 compute,
             ),
         ):
@@ -383,7 +409,7 @@ class TestCompareReviews:
 
         with (
             patch(
-                "app.services.trading.agent_review_service.resolve_requested_window",
+                "app.services.trading.agent_review_queries.resolve_requested_window",
                 AsyncMock(side_effect=[window_a, window_b]),
             ),
             patch(
@@ -391,11 +417,11 @@ class TestCompareReviews:
                 AsyncMock(return_value=MagicMock(id=7)),
             ),
             patch(
-                "app.services.trading.agent_review_service._load_cached",
+                "app.services.trading.agent_review_queries.load_cached",
                 AsyncMock(return_value=MagicMock()),
             ),
             patch(
-                "app.services.trading.agent_review_service.compute_window_metrics",
+                "app.services.trading.agent_review_queries.compute_window_metrics",
                 compute,
             ),
         ):
@@ -418,7 +444,7 @@ class TestCompareReviews:
         window = _window_over("day", date(2026, 7, 15), date(2026, 7, 15))
         with (
             patch(
-                "app.services.trading.agent_review_service.resolve_requested_window",
+                "app.services.trading.agent_review_queries.resolve_requested_window",
                 AsyncMock(return_value=window),
             ),
             patch(
@@ -426,7 +452,7 @@ class TestCompareReviews:
                 AsyncMock(return_value=MagicMock(id=7)),
             ),
             patch(
-                "app.services.trading.agent_review_service._load_cached",
+                "app.services.trading.agent_review_queries.load_cached",
                 AsyncMock(return_value=None),
             ),
             pytest.raises(agent_review_service.TradingReviewNotFoundError),
@@ -451,7 +477,7 @@ class TestCompareReviews:
             trading_days=(),
         )
         with patch(
-            "app.services.trading.agent_review_service.resolve_requested_window",
+            "app.services.trading.agent_review_queries.resolve_requested_window",
             AsyncMock(return_value=empty),
         ), pytest.raises(BadRequestError, match="没有交易日"):
             await agent_review_service.compare_reviews(
@@ -474,7 +500,11 @@ class TestGenerateReview:
             pytest.raises(NonTradingDayError),
         ):
             await agent_review_service.generate_review(
-                AsyncMock(), _agent(), period="day", trade_date=_TRADE_DATE
+                AsyncMock(),
+                _agent(),
+                ReviewWindowRequest.from_values(
+                    period="day", trade_date=_TRADE_DATE
+                ),
             )
 
     @pytest.mark.asyncio
@@ -494,7 +524,11 @@ class TestGenerateReview:
             ),
             pytest.raises(AgentAccountNotDesignatedError),
         ):
-            await agent_review_service.generate_review(AsyncMock(), _agent(), period="day")
+            await agent_review_service.generate_review(
+                AsyncMock(),
+                _agent(),
+                ReviewWindowRequest.from_values(period="day"),
+            )
 
     @pytest.mark.asyncio
     async def test_returns_cached_before_readiness_check(self) -> None:
@@ -514,7 +548,11 @@ class TestGenerateReview:
             ),
         ):
             result = await agent_review_service.generate_review(
-                AsyncMock(), _agent(), period="day", trade_date=_TRADE_DATE
+                AsyncMock(),
+                _agent(),
+                ReviewWindowRequest.from_values(
+                    period="day", trade_date=_TRADE_DATE
+                ),
             )
 
         assert result.cached is True
@@ -536,13 +574,17 @@ class TestGenerateReview:
                 AsyncMock(return_value=None),
             ),
             patch(
-                "app.services.trading.agent_review_service._sync_landed",
+                "app.services.trading.agent_review_generate.sync_landed",
                 AsyncMock(return_value=False),
             ),
             pytest.raises(ReviewInputDataNotReadyError, match="尚未落库"),
         ):
             await agent_review_service.generate_review(
-                AsyncMock(), _agent(), period="day", trade_date=_TRADE_DATE
+                AsyncMock(),
+                _agent(),
+                ReviewWindowRequest.from_values(
+                    period="day", trade_date=_TRADE_DATE
+                ),
             )
 
     @pytest.mark.asyncio
@@ -562,7 +604,7 @@ class TestGenerateReview:
                 AsyncMock(return_value=None),
             ),
             patch(
-                "app.services.trading.agent_review_service._sync_landed",
+                "app.services.trading.agent_review_generate.sync_landed",
                 AsyncMock(return_value=False),
             ),
             pytest.raises(
@@ -573,8 +615,9 @@ class TestGenerateReview:
             await agent_review_service.generate_review(
                 AsyncMock(),
                 _agent(),
-                period="month",
-                trade_date=_TRADE_DATE,
+                ReviewWindowRequest.from_values(
+                    period="month", trade_date=_TRADE_DATE
+                ),
                 trigger="manual",
             )
 
@@ -597,11 +640,11 @@ class TestGenerateReview:
                 AsyncMock(return_value=None),
             ),
             patch(
-                "app.services.trading.agent_review_service._sync_landed",
+                "app.services.trading.agent_review_generate.sync_landed",
                 AsyncMock(return_value=True),
             ),
             patch(
-                "app.services.trading.agent_review_service._has_review_target",
+                "app.services.trading.agent_review_generate.has_review_target",
                 AsyncMock(return_value=False),
             ),
             patch(
@@ -610,7 +653,12 @@ class TestGenerateReview:
             ) as insert_mock,
         ):
             result = await agent_review_service.generate_review(
-                session, _agent(), period="day", trade_date=_TRADE_DATE, regenerate=True
+                session,
+                _agent(),
+                ReviewWindowRequest.from_values(
+                    period="day", trade_date=_TRADE_DATE
+                ),
+                regenerate=True,
             )
 
         assert result.cached is False
@@ -641,18 +689,23 @@ class TestGenerateReview:
                 AsyncMock(return_value=None),
             ),
             patch(
-                "app.services.trading.agent_review_service._sync_landed",
+                "app.services.trading.agent_review_generate.sync_landed",
                 AsyncMock(return_value=True),
             ),
             patch(
-                "app.services.trading.agent_review_service._has_review_target",
+                "app.services.trading.agent_review_generate.has_review_target",
                 AsyncMock(return_value=True),
             ),
-            patch.object(agent_review_service, "redis_lock", _locked),
+            patch("app.services.trading.agent_review_generate.redis_lock", _locked),
             pytest.raises(PaperTradeReviewLockedError, match="正在生成"),
         ):
             await agent_review_service.generate_review(
-                AsyncMock(), _agent(), period="day", trade_date=_TRADE_DATE, regenerate=True
+                AsyncMock(),
+                _agent(),
+                ReviewWindowRequest.from_values(
+                    period="day", trade_date=_TRADE_DATE
+                ),
+                regenerate=True,
             )
 
     @pytest.mark.asyncio
@@ -684,22 +737,22 @@ class TestGenerateReview:
                 AsyncMock(return_value=MagicMock(id=7)),
             ),
             patch(
-                "app.services.trading.agent_review_service._sync_landed",
+                "app.services.trading.agent_review_generate.sync_landed",
                 AsyncMock(return_value=True),
             ),
             patch(
-                "app.services.trading.agent_review_service._has_review_target",
+                "app.services.trading.agent_review_generate.has_review_target",
                 AsyncMock(return_value=True),
             ),
-            patch.object(agent_review_service, "redis_lock", _locked),
+            patch("app.services.trading.agent_review_generate.redis_lock", _locked),
             patch(
-                "app.services.trading.agent_review_service._collect_window_input",
+                "app.services.trading.agent_review_generate.collect_window_input",
                 AsyncMock(
                     return_value={"orders": [{"cl_ord_id": "A"}, {"cl_ord_id": "B"}]}
                 ),
             ),
             patch(
-                "app.services.trading.agent_review_service._market_review_optional",
+                "app.services.trading.agent_review_generate.market_review_optional",
                 AsyncMock(return_value={"overall": "主线发酵"}),
             ),
             patch(
@@ -707,7 +760,7 @@ class TestGenerateReview:
                 AsyncMock(return_value=None),
             ),
             patch(
-                "app.services.trading.agent_review_service._run_llm",
+                "app.services.trading.agent_review_generate.run_review_llm",
                 AsyncMock(return_value=llm_content),
             ) as llm_mock,
             patch(
@@ -721,7 +774,12 @@ class TestGenerateReview:
         ):
             session = AsyncMock()
             result = await agent_review_service.generate_review(
-                session, _agent(), period="day", trade_date=_TRADE_DATE, regenerate=True
+                session,
+                _agent(),
+                ReviewWindowRequest.from_values(
+                    period="day", trade_date=_TRADE_DATE
+                ),
+                regenerate=True,
             )
 
         assert result.cached is False
@@ -768,28 +826,28 @@ class TestGenerateReview:
                 AsyncMock(return_value=MagicMock(id=7)),
             ),
             patch(
-                "app.services.trading.agent_review_service._sync_landed",
+                "app.services.trading.agent_review_generate.sync_landed",
                 AsyncMock(return_value=True),
             ),
             patch(
-                "app.services.trading.agent_review_service._has_review_target",
+                "app.services.trading.agent_review_generate.has_review_target",
                 AsyncMock(return_value=True),
             ),
-            patch.object(agent_review_service, "redis_lock", _locked),
+            patch("app.services.trading.agent_review_generate.redis_lock", _locked),
             patch(
-                "app.services.trading.agent_review_service._collect_window_input",
+                "app.services.trading.agent_review_generate.collect_window_input",
                 AsyncMock(return_value={"orders": [{"cl_ord_id": "A"}]}),
             ),
             patch(
-                "app.services.trading.agent_review_service.load_key_trade_selection",
+                "app.services.trading.agent_review_generate.load_key_trade_selection",
                 AsyncMock(return_value=selection),
             ) as key_mock,
             patch(
-                "app.services.trading.agent_review_service.filter_window_input",
+                "app.services.trading.agent_review_generate.filter_window_input",
                 MagicMock(return_value={"orders": [{"cl_ord_id": "A"}]}),
             ) as filter_mock,
             patch(
-                "app.services.trading.agent_review_service._market_review_optional",
+                "app.services.trading.agent_review_generate.market_review_optional",
                 AsyncMock(return_value=None),
             ),
             patch(
@@ -797,7 +855,7 @@ class TestGenerateReview:
                 AsyncMock(return_value=None),
             ),
             patch(
-                "app.services.trading.agent_review_service._run_llm",
+                "app.services.trading.agent_review_generate.run_review_llm",
                 AsyncMock(return_value=llm_content),
             ),
             patch(
@@ -810,7 +868,12 @@ class TestGenerateReview:
             ) as sediment_mock,
         ):
             result = await agent_review_service.generate_review(
-                AsyncMock(), _agent(), period="quarter", trade_date=_TRADE_DATE, regenerate=True
+                AsyncMock(),
+                _agent(),
+                ReviewWindowRequest.from_values(
+                    period="quarter", trade_date=_TRADE_DATE
+                ),
+                regenerate=True,
             )
 
         key_mock.assert_awaited_once()
@@ -837,7 +900,7 @@ class TestEnsureWindowReady:
                 AsyncMock(return_value=MagicMock(id=7)),
             ),
             patch(
-                "app.services.trading.agent_review_service._sync_landed",
+                "app.services.trading.agent_review_window.sync_landed",
                 AsyncMock(return_value=False),
             ),
             pytest.raises(
@@ -857,7 +920,7 @@ class TestEnsureWindowReady:
                 AsyncMock(return_value=MagicMock(id=7)),
             ),
             patch(
-                "app.services.trading.agent_review_service._sync_landed",
+                "app.services.trading.agent_review_window.sync_landed",
                 AsyncMock(return_value=True),
             ),
         ):
@@ -881,7 +944,7 @@ class TestRunLlmPersona:
         with patch(
             "app.agent.runtime.structured.run_structured", structured
         ) as run_mock:
-            await agent_review_service._run_llm(
+            await agent_review_llm.run_review_llm(
                 AsyncMock(), agent, "day", _TRADE_DATE, {"orders": []}
             )
 
@@ -915,10 +978,10 @@ class TestMarketReviewOptional:
     async def test_returns_sections_when_ready(self) -> None:
         review = {"sections": {"emotion": "主线发酵"}, "date": "2026-07-15"}
         with patch(
-            "app.services.trading.agent_plan_input._market_review_sections",
+            "app.services.trading.agent_plan_input.market_review_sections",
             AsyncMock(return_value=review),
         ):
-            result = await agent_review_service._market_review_optional(
+            result = await agent_review_inputs.market_review_optional(
                 AsyncMock(), _TRADE_DATE
             )
         assert result == {"emotion": "主线发酵"}
@@ -927,10 +990,10 @@ class TestMarketReviewOptional:
     async def test_degrades_to_none_when_missing(self) -> None:
         """补跑历史窗口时当日解读缺失：降级 None 不阻塞复盘。"""
         with patch(
-            "app.services.trading.agent_plan_input._market_review_sections",
+            "app.services.trading.agent_plan_input.market_review_sections",
             AsyncMock(side_effect=ReviewInputDataNotReadyError("缺失")),
         ):
-            result = await agent_review_service._market_review_optional(
+            result = await agent_review_inputs.market_review_optional(
                 AsyncMock(), _TRADE_DATE
             )
         assert result is None
@@ -950,7 +1013,7 @@ class TestLegacyCacheCompat:
         )
         expected = hashlib.sha256(raw.encode()).hexdigest()
         assert (
-            agent_review_service._input_hash(
+            agent_review_cache.input_hash(
                 "short-line", 7, "day", date(2026, 7, 1), _TRADE_DATE
             )
             == expected
@@ -1017,14 +1080,14 @@ class TestValidate:
             update={"trades": content.trades + [content.trades[0].model_copy(update={"cl_ord_id": "X"})]}
         )
 
-        result = agent_review_service._validate(patched, {"A"})
+        result = agent_review_llm.validate_review_trades(patched, {"A"})
 
         assert [t.cl_ord_id for t in result.trades] == ["A"]
 
     def test_keeps_empty_trades(self) -> None:
         content = _content().model_copy(update={"trades": []})
 
-        assert agent_review_service._validate(content, {"A"}).trades == []
+        assert agent_review_llm.validate_review_trades(content, {"A"}).trades == []
 
 
 @pytest.mark.unit
@@ -1037,8 +1100,10 @@ class TestPeriodEndChecks:
         ) -> date | None:
             return next_day
 
+        from app.services.market import trade_calendar_service
+
         monkeypatch.setattr(
-            agent_review_service, "next_trading_day", fake_next_trading_day
+            trade_calendar_service, "next_trading_day", fake_next_trading_day
         )
         return AsyncMock()
 
@@ -1048,7 +1113,7 @@ class TestPeriodEndChecks:
     ) -> None:
         # 周三之后周四是交易日 → 未到周期末
         session = self._patch_next(monkeypatch, date(2026, 7, 16))
-        assert await agent_review_service.is_last_trading_day_of_week(
+        assert await agent_review_periods.is_last_trading_day_of_week(
             session, _TRADE_DATE
         ) is False
 
@@ -1058,7 +1123,7 @@ class TestPeriodEndChecks:
     ) -> None:
         # 周五之后下一交易日是下周一 → 周期末
         session = self._patch_next(monkeypatch, date(2026, 7, 20))
-        assert await agent_review_service.is_last_trading_day_of_week(
+        assert await agent_review_periods.is_last_trading_day_of_week(
             session, date(2026, 7, 17)
         ) is True
 
@@ -1066,7 +1131,7 @@ class TestPeriodEndChecks:
     async def test_week_true_when_no_next_trading_day(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        assert await agent_review_service.is_last_trading_day_of_week(
+        assert await agent_review_periods.is_last_trading_day_of_week(
             self._patch_next(monkeypatch, None), date(2026, 7, 17)
         ) is True
 
@@ -1075,7 +1140,7 @@ class TestPeriodEndChecks:
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         session = self._patch_next(monkeypatch, date(2026, 7, 30))
-        assert await agent_review_service.is_last_trading_day_of_month(
+        assert await agent_review_periods.is_last_trading_day_of_month(
             session, date(2026, 7, 29)
         ) is False
 
@@ -1084,7 +1149,7 @@ class TestPeriodEndChecks:
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         session = self._patch_next(monkeypatch, date(2026, 8, 3))
-        assert await agent_review_service.is_last_trading_day_of_month(
+        assert await agent_review_periods.is_last_trading_day_of_month(
             session, date(2026, 7, 31)
         ) is True
 
@@ -1122,12 +1187,16 @@ class TestRecorderWiring:
                 AsyncMock(return_value=_cached_row(_content_dict())),
             ),
             patch(
-                "app.services.trading.agent_review_service.AgentRunRecorder",
+                "app.services.trading.agent_review_generate.AgentRunRecorder",
                 return_value=rec,
             ),
         ):
             result = await agent_review_service.generate_review(
-                AsyncMock(), _agent(), period="day", trade_date=_TRADE_DATE
+                AsyncMock(),
+                _agent(),
+                ReviewWindowRequest.from_values(
+                    period="day", trade_date=_TRADE_DATE
+                ),
             )
 
         assert result.cached is True
@@ -1154,17 +1223,21 @@ class TestRecorderWiring:
                 AsyncMock(return_value=None),
             ),
             patch(
-                "app.services.trading.agent_review_service._sync_landed",
+                "app.services.trading.agent_review_generate.sync_landed",
                 AsyncMock(return_value=False),
             ),
             patch(
-                "app.services.trading.agent_review_service.AgentRunRecorder",
+                "app.services.trading.agent_review_generate.AgentRunRecorder",
                 return_value=rec,
             ),
             pytest.raises(ReviewInputDataNotReadyError, match="尚未落库"),
         ):
             await agent_review_service.generate_review(
-                AsyncMock(), _agent(), period="day", trade_date=_TRADE_DATE
+                AsyncMock(),
+                _agent(),
+                ReviewWindowRequest.from_values(
+                    period="day", trade_date=_TRADE_DATE
+                ),
             )
 
         rec.finish.assert_awaited_once()

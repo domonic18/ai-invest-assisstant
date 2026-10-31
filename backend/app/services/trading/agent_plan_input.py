@@ -54,8 +54,11 @@ _CHAIN_ALERT_TOP_N = 10
 _CHAIN_ALERT_WINDOW_DAYS = 7
 
 
-async def _market_review_sections(session: AsyncSession, trade_date: date) -> dict[str, Any]:
-    """当日复盘解读全文（就绪预检：缺失即输入未就绪，18:35 任务生成）。"""
+async def market_review_sections(session: AsyncSession, trade_date: date) -> dict[str, Any]:
+    """当日复盘解读全文（就绪预检：缺失即输入未就绪，18:35 任务生成）。
+
+    计划与复盘两条输入路径共用（复盘 ``market_review_optional`` 降级为 None）。
+    """
     row = await ai_analysis_repository.load_latest_success(
         session, skill_id=MARKET_REVIEW_SKILL_ID, trade_date=trade_date
     )
@@ -417,7 +420,7 @@ async def collect_plan_input(
         if recorder
         else nullcontext()
     ):
-        review = await _market_review_sections(session, trade_date)
+        review = await market_review_sections(session, trade_date)
         attribution = await _limit_up_attribution(session, trade_date)
 
     anomalies = await _stock_anomalies(session, trade_date)

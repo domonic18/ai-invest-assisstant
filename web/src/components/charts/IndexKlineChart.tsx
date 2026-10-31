@@ -1,23 +1,19 @@
 import ReactECharts from '@/components/charts/ReactECharts'
-import type { ECharts, EChartsOption, SeriesOption } from 'echarts'
-import { useState } from 'react'
-
-import dayjs from 'dayjs'
+import type { ECharts } from 'echarts'
+import { useEffect, useMemo, useState } from 'react'
 
 import type { IndexKlineBar, KlineDrawingPeriod, MovingAverageConfig } from '@ai-invest/shared'
-import { fmt, FONT_MONO, lastPriceLabel, signed, WEEKDAYS } from '@/components/charts/chartShared'
 import { DrawingLayerHost } from '@/components/charts/drawing/DrawingLayerHost'
 import { AiDrawingButton } from '@/components/charts/drawing/AiDrawingButton'
 import { DrawingToolbar } from '@/components/charts/drawing/DrawingToolbar'
-import { computePriceAxisRange } from '@/components/charts/stockChartView/klineOption'
+import {
+  buildIndexKlineOption,
+  initialVisibleWindow,
+} from '@/components/charts/indexKlineOption'
 import { useDataZoomYAxisRescale } from '@/components/charts/useDataZoomYAxisRescale'
 import { useKlineKeyboardNav } from '@/components/charts/useKlineKeyboardNav'
 import { useColorScheme } from '@/stores/settings'
-import { fallHex, formatAmount, riseHex } from '@/utils/formatters'
-import { deriveAmplitude, deriveBarChange } from '@/utils/kline'
-import { movingAverage } from '@/utils/movingAverage'
-
-const MUTED = '#5c616e'
+import { fallHex, riseHex } from '@/utils/formatters'
 
 interface IndexKlineChartProps {
   bars: IndexKlineBar[]
@@ -28,8 +24,16 @@ interface IndexKlineChartProps {
   markers?: { date: string; label?: string }[]
   /** 画线归属（指数代码 + 周期）；不传或周期不支持（季/年线）则不启用画线图层。 */
   drawingTarget?: { code: string; period: KlineDrawingPeriod }
+  /** 价格/收益率小数位（债券收益率传 3，其余默认 2）。 */
+  valueDecimals?: number
+  /** 详情页开启底部滑块缩放；概览卡片保持 inside-only。 */
+  showSlider?: boolean
 }
 
+/**
+ * 指数 K 线：option 由 indexKlineOption 构造，本组件只负责交互（键盘缩放、
+ * 双击复位、缩放窗口联动、画线宿主）与 MA 常驻数值行。
+ */
 export function IndexKlineChart({
   bars,
   maConfigs,
@@ -37,345 +41,76 @@ export function IndexKlineChart({
   defaultVisibleBars,
   markers,
   drawingTarget,
+  valueDecimals = 2,
+  showSlider = false,
 }: IndexKlineChartProps) {
   useColorScheme()
   const { chartRef, wrapperProps, onEvents: navOnEvents } = useKlineKeyboardNav(bars.length)
   // 画线图层实例（onChartReady 捕获）；未传 drawingTarget 时不启用
   const [drawingChart, setDrawingChart] = useState<ECharts | null>(null)
+  // MA 数值行 / 双击复位共用可见窗口尾下标；null = 序列尾
+  const [visibleEndIdx, setVisibleEndIdx] = useState<number | null>(null)
 
   const up = riseHex()
   const down = fallHex()
-
-  const dates = bars.map((bar) => bar.date)
-  const candles = bars.map((bar) => [bar.open, bar.close, bar.low, bar.high])
-  const closes = bars.map((bar) => bar.close)
-  // 债券收益率/利差等源仅 close（无 OHLC）→ 收盘线；无量的源隐藏量能副图
+  const dates = useMemo(() => bars.map((bar) => bar.date), [bars])
   const hasOhlc =
     bars.length > 0 &&
     bars.every((bar) => bar.open != null && bar.high != null && bar.low != null)
-  // 缩放后按可见窗口重算主图纵轴（无 OHLC 的收盘线由 scale 自适应，无需重算）
+
   const { handleDataZoom } = useDataZoomYAxisRescale(
     chartRef,
-    hasOhlc ? { dates, bars } : null,
+    { dates, bars },
+    {
+      rescale: hasOhlc,
+      onWindowChange: (_startIdx, endIdx) =>
+        setVisibleEndIdx((prev) => (prev === endIdx ? prev : endIdx)),
+    },
   )
+
+  useEffect(() => {
+    setVisibleEndIdx(null)
+  }, [bars])
+
+  // option 必须 memo：内联 formatter 每次渲染都是新引用，echarts-for-react
+  // 深比较失配会以 notMerge 重设 option，把用户已缩放/平移的窗口重置掉
+  const { option, mas } = useMemo(
+    () =>
+      buildIndexKlineOption({
+        bars,
+        maConfigs,
+        markers,
+        defaultVisibleBars,
+        valueDecimals,
+        showSlider,
+        height,
+        up,
+        down,
+      }),
+    [bars, maConfigs, markers, defaultVisibleBars, valueDecimals, showSlider, height, up, down],
+  )
+
+  /** 双击复位：回到本图自己的初始窗口（而非固定的 50% 百分比窗口）。 */
+  const resetZoom = () => {
+    const chart = chartRef.current?.getEchartsInstance()
+    if (!chart) return
+    chart.dispatchAction({
+      type: 'dataZoom',
+      ...(initialVisibleWindow(bars.length, defaultVisibleBars) ?? { start: 0, end: 100 }),
+    })
+  }
+
   const onEvents = {
     ...navOnEvents,
+    dblclick: resetZoom,
     datazoom: () => {
       navOnEvents.datazoom()
       handleDataZoom()
     },
   }
-  const hasVolume = bars.some((bar) => (bar.volume ?? 0) > 0)
-  const volumes = bars.map((bar) => ({
-    value: bar.volume ?? 0,
-    itemStyle: {
-      color:
-        bar.close != null && bar.open != null && bar.close < bar.open ? down : up,
-    },
-  }))
 
-  // 异动日竖线（主图 grid 内），仅渲染命中横轴的日期
-  const anomalyLineData = (markers ?? [])
-    .filter((m) => dates.includes(m.date))
-    .map((m) => ({
-      xAxis: m.date,
-      lineStyle: { color: '#d4a017', type: 'dashed' as const, width: 1, opacity: 0.9 },
-      label: {
-        show: true,
-        position: 'insideEndTop' as const,
-        formatter: m.label ?? m.date,
-        color: '#d4a017',
-        fontSize: 9,
-      },
-    }))
-
-  const activeConfigs = maConfigs.filter((cfg) => cfg.enabled)
-  const mas = activeConfigs.map((cfg) => ({
-    period: cfg.period,
-    color: cfg.color,
-    values: movingAverage(closes, cfg.period),
-  }))
-
-// 收益率等窄区间量级下保留必要小数，避免刻度被压成整数
-const formatAxisValue = (value: number) =>
-  Math.abs(value) >= 100 ? value.toFixed(0) : value.toFixed(1)
-
-  const maSeries: SeriesOption[] = mas.map((cfg) => ({
-    name: `MA${cfg.period}`,
-    type: 'line',
-    data: cfg.values,
-    showSymbol: false,
-    smooth: true,
-    lineStyle: { color: cfg.color, width: 1 },
-    z: 3,
-    yAxisIndex: 0,
-  }))
-
-  // 主图双轴：右轴价格、左轴涨跌幅（相对首根收盘）；按初始可见窗口定标，缩放后由 datazoom 重算
-  const initialStartIdx =
-    defaultVisibleBars != null && bars.length > defaultVisibleBars
-      ? bars.length - defaultVisibleBars
-      : 0
-  const { yMin, yMax, pctMin, pctMax } = computePriceAxisRange(
-    bars,
-    initialStartIdx,
-    bars.length - 1,
-  )
-
-  // 最新价胶囊（右轴端点）
-  const lastIdx = bars.length - 1
-  const lastBar = bars[lastIdx]
-  const lastPrevClose = lastIdx > 0 ? bars[lastIdx - 1].close : null
-  const { changePct: lastChangePct } = lastBar
-    ? deriveBarChange(lastBar, lastPrevClose)
-    : { changePct: null }
-  const tagColor =
-    lastChangePct == null ? MUTED : lastChangePct >= 0 ? up : down
-
-  const yAxis: EChartsOption['yAxis'] = hasOhlc
-    ? [
-        {
-          position: 'right',
-          min: yMin,
-          max: yMax,
-          scale: true,
-          axisLabel: {
-            color: '#8c8c8c',
-            fontSize: 10,
-            formatter: formatAxisValue,
-          },
-          splitLine: { lineStyle: { color: 'rgba(255,255,255,0.06)' } },
-        },
-        {
-          position: 'left',
-          min: pctMin,
-          max: pctMax,
-          axisLabel: {
-            fontSize: 10,
-            formatter: (value: number) => {
-              const v = Number(value)
-              if (v > 0.005) return `{up|+${v.toFixed(1)}%}`
-              if (v < -0.005) return `{down|${v.toFixed(1)}%}`
-              return '{flat|0.0%}'
-            },
-            rich: {
-              up: { color: up, fontSize: 10, fontFamily: FONT_MONO, align: 'right' },
-              down: { color: down, fontSize: 10, fontFamily: FONT_MONO, align: 'right' },
-              flat: { color: '#8c8c8c', fontSize: 10, fontFamily: FONT_MONO, align: 'right' },
-            },
-          },
-          splitLine: { show: false },
-        },
-      ]
-    : [
-        {
-          scale: true,
-          position: 'left',
-          axisLabel: {
-            color: '#8c8c8c',
-            fontSize: 10,
-            formatter: formatAxisValue,
-          },
-          splitLine: { lineStyle: { color: 'rgba(255,255,255,0.06)' } },
-        },
-      ]
-
-  if (hasVolume) {
-    yAxis.push({
-      gridIndex: 1,
-      axisLabel: {
-        color: '#8c8c8c',
-        fontSize: 10,
-        formatter: (value: number) => `${(value / 1e8).toFixed(1)}亿`,
-      },
-      splitLine: { show: false },
-    })
-  }
-
-  const option: EChartsOption = {
-    backgroundColor: 'transparent',
-    animation: false,
-    legend: {
-      show: maSeries.length > 0,
-      data: activeConfigs.map((cfg) => `MA${cfg.period}`),
-      top: 0,
-      textStyle: { color: '#8c8c8c', fontSize: 10 },
-      itemWidth: 14,
-      itemHeight: 2,
-      icon: 'rect',
-    },
-    tooltip: {
-      trigger: 'axis',
-      axisPointer: { type: 'cross' },
-      backgroundColor: '#1a1d24',
-      borderColor: '#2e323c',
-      padding: [6, 8],
-      textStyle: { color: '#d1d4dc' },
-      appendToBody: true,
-      position: (point, _params, _dom, _rect, size) => {
-        const [x, y] = point
-        const { contentSize, viewSize } = size
-        const px = x + 14 + contentSize[0] > viewSize[0]
-          ? x - contentSize[0] - 14
-          : x + 14
-        const py = y - contentSize[1] - 14 < 0 ? y + 14 : y - contentSize[1] - 14
-        return [px, py]
-      },
-      formatter: (params) => {
-        const items = Array.isArray(params) ? params : [params]
-        if (!items.length) return ''
-        const index = (items[0] as { dataIndex?: number })?.dataIndex ?? 0
-        const bar = bars[index]
-        if (!bar) return ''
-        const prevClose = index > 0 ? bars[index - 1].close : null
-        const { change, changePct } = deriveBarChange(bar, prevClose)
-        const fall =
-          changePct != null
-            ? changePct < 0
-            : bar.open != null && bar.close != null && bar.close < bar.open
-        const dirColor = fall ? down : up
-        const date = dayjs(bar.date)
-        const weekday = date.isValid() ? ` ${WEEKDAYS[date.day()]}` : ''
-
-        const span = (text: string, extra = '') =>
-          `<span style="font-family:${FONT_MONO};font-size:11px;${extra}">${text}</span>`
-        const muted = (k: string) =>
-          `<span style="font-size:11px;color:${MUTED}">${k} </span>`
-        const line1 = hasOhlc
-          ? muted('开') + span(fmt(bar.open), 'margin-right:8px') +
-            muted('高') + span(fmt(bar.high), 'margin-right:8px') +
-            muted('低') + span(fmt(bar.low), 'margin-right:8px') +
-            muted('收') + span(fmt(bar.close), `font-weight:600;color:${dirColor}`)
-          : muted('收') + span(fmt(bar.close), `font-weight:600;color:${dirColor}`)
-        const line2 =
-          span(`${signed(change)} (${signed(changePct)}%)`, `font-weight:600;color:${dirColor};margin-right:8px`) +
-          (hasVolume ? muted('量') + span(formatAmount(bar.volume)) : '')
-        const amplitudeVal = hasOhlc ? deriveAmplitude(bar, prevClose) : null
-        const line3 = hasOhlc
-          ? muted('振幅') + span(amplitudeVal != null ? `${amplitudeVal.toFixed(2)}%` : '--', 'margin-right:8px') +
-            muted('成交额') + span(formatAmount(bar.amount))
-          : ''
-        const maRow = mas.length
-          ? `<div style="margin-top:4px;padding-top:3px;border-top:1px solid #23262d;white-space:nowrap">${mas
-              .map((ma) => {
-                const v = ma.values[index]
-                return `<span style="font-family:${FONT_MONO};font-size:10px;color:${ma.color};margin-right:6px">MA${ma.period} ${v == null ? '--' : v.toFixed(2)}</span>`
-              })
-              .join('')}</div>`
-          : ''
-        return [
-          `<div style="font-size:10px;color:${MUTED};margin-bottom:2px">${bar.date}${weekday}</div>`,
-          `<div style="white-space:nowrap">${line1}</div>`,
-          `<div style="white-space:nowrap;margin-top:2px">${line2}</div>`,
-          line3 ? `<div style="white-space:nowrap;margin-top:2px">${line3}</div>` : '',
-          maRow,
-        ].join('')
-      },
-    },
-    axisPointer: { link: [{ xAxisIndex: 'all' }] },
-    grid: hasVolume
-      ? [
-          { left: 60, right: 16, top: 28, height: '56%' },
-          { left: 60, right: 16, top: '74%', height: '16%' },
-        ]
-      : [{ left: 60, right: 16, top: 28, bottom: 24 }],
-    dataZoom: [
-      {
-        type: 'inside',
-        xAxisIndex: hasVolume ? [0, 1] : [0],
-        ...(defaultVisibleBars != null && bars.length > defaultVisibleBars
-          ? { startValue: bars.length - defaultVisibleBars, endValue: bars.length - 1 }
-          : {}),
-      },
-    ],
-    xAxis: hasVolume
-      ? [
-          {
-            type: 'category',
-            data: dates,
-            axisLabel: { show: false },
-            axisTick: { show: false },
-            axisLine: { lineStyle: { color: '#3a3f4b' } },
-          },
-          {
-            type: 'category',
-            gridIndex: 1,
-            data: dates,
-            axisLabel: { color: '#8c8c8c', fontSize: 10, interval: Math.ceil(dates.length / 6) },
-            axisTick: { show: false },
-            axisLine: { lineStyle: { color: '#3a3f4b' } },
-          },
-        ]
-      : [
-          {
-            type: 'category',
-            data: dates,
-            axisLabel: { color: '#8c8c8c', fontSize: 10, interval: Math.ceil(dates.length / 6) },
-            axisTick: { show: false },
-            axisLine: { lineStyle: { color: '#3a3f4b' } },
-          },
-        ],
-    yAxis,
-    series: [
-      hasOhlc
-        ? {
-            name: 'K线',
-            type: 'candlestick',
-            data: candles,
-            yAxisIndex: 0,
-            itemStyle: {
-              color: up,
-              color0: down,
-              borderColor: up,
-              borderColor0: down,
-            },
-            markLine:
-              lastBar || anomalyLineData.length
-                ? {
-                    silent: true,
-                    symbol: ['none', 'none'],
-                    lineStyle: { color: tagColor, type: 'dashed', width: 1, opacity: 0.7 },
-                    label: lastPriceLabel(lastBar?.close, tagColor),
-                    data: [
-                      ...(lastBar && lastBar.close != null
-                        ? [{ yAxis: lastBar.close }]
-                        : []),
-                      ...anomalyLineData,
-                    ],
-                  }
-                : undefined,
-          }
-        : {
-            name: '收盘',
-            type: 'line',
-            data: closes,
-            yAxisIndex: 0,
-            showSymbol: false,
-            lineStyle: { color: '#58a6ff', width: 1.5 },
-            z: 2,
-            markLine: anomalyLineData.length
-              ? {
-                  silent: true,
-                  symbol: ['none', 'none'],
-                  data: anomalyLineData,
-                }
-              : undefined,
-          },
-      ...maSeries,
-      ...(hasVolume
-        ? [
-            {
-              name: '成交量',
-              type: 'bar' as const,
-              xAxisIndex: 1,
-              yAxisIndex: hasOhlc ? 2 : 1,
-              data: volumes,
-              barWidth: '60%',
-            },
-          ]
-        : []),
-    ],
-  }
+  const latestIdx = Math.max(bars.length - 1, 0)
+  const legendIdx = Math.min(Math.max(visibleEndIdx ?? latestIdx, 0), latestIdx)
 
   return (
     <div {...wrapperProps} className="relative">
@@ -383,6 +118,23 @@ const formatAxisValue = (value: number) =>
         <div className="absolute top-1.5 right-3 z-10 flex items-center gap-px rounded-md border border-white/10 bg-[#1a1d24]/90 p-px">
           <DrawingToolbar />
           <AiDrawingButton />
+        </div>
+      )}
+      {mas.length > 0 && bars.length > 0 && (
+        // 常驻数值行：锚定可见窗口尾 bar（缩放/平移后跟随），避开右侧价格轴与画线工具
+        <div
+          className={`absolute top-1.5 left-[66px] z-10 flex flex-wrap gap-x-3 gap-y-0.5 font-mono text-[11px] pointer-events-none ${
+            drawingTarget ? 'right-[150px]' : 'right-[72px]'
+          }`}
+        >
+          {mas.map((ma) => {
+            const value = ma.values[legendIdx]
+            return (
+              <span key={ma.period} style={{ color: ma.color }}>
+                MA{ma.period}: {value == null ? '--' : value.toFixed(valueDecimals)}
+              </span>
+            )
+          })}
         </div>
       )}
       <ReactECharts

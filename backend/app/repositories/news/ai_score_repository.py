@@ -43,11 +43,24 @@ async def list_unscored_telegraph(
     return list(result.scalars().all())
 
 
+def _dedupe_by_key(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """按 (source, item_id) 去重，后者覆盖前者。
+
+    ON CONFLICT 无法处理同一条 INSERT 内的重复键（PostgreSQL 报
+    CardinalityViolation）；LLM 偶发对同一 item 输出两条评分，先归并再写。
+    """
+    deduped: dict[tuple[str, str], dict[str, Any]] = {}
+    for row in rows:
+        deduped[(row["source"], row["item_id"])] = row
+    return list(deduped.values())
+
+
 async def upsert_scores(
     session: AsyncSession,
     rows: list[dict[str, Any]],
 ) -> int:
     """批量写入评分（同条重评覆盖 score/detail/scored_at，不 commit）。"""
+    rows = _dedupe_by_key(rows)
     if not rows:
         return 0
     stmt = pg_insert(NewsAiScore).values(rows)

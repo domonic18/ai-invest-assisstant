@@ -11,6 +11,8 @@ interface IndexKlinePanelProps {
   code: string
   period: IndexKlinePeriod
   maConfigs: MovingAverageConfig[]
+  /** 详情页开启底部滑块缩放；概览卡片保持 inside-only。 */
+  showSlider?: boolean
 }
 
 const PERIOD_LABEL: Record<IndexKlinePeriod, string> = {
@@ -21,7 +23,7 @@ const PERIOD_LABEL: Record<IndexKlinePeriod, string> = {
   yearly: '年线',
 }
 
-export function IndexKlinePanel({ code, period, maConfigs }: IndexKlinePanelProps) {
+export function IndexKlinePanel({ code, period, maConfigs, showSlider }: IndexKlinePanelProps) {
   useColorScheme()
   const { data, isLoading, error } = useIndexKline(code, period)
 
@@ -66,7 +68,8 @@ export function IndexKlinePanel({ code, period, maConfigs }: IndexKlinePanelProp
           bars={data.bars}
           maConfigs={maConfigs}
           height={340}
-          defaultVisibleBars={period === 'daily' ? 120 : undefined}
+          defaultVisibleBars={period === 'daily' || period === 'weekly' ? 120 : undefined}
+          showSlider={showSlider}
           drawingTarget={
             period === 'quarterly' || period === 'yearly'
               ? undefined
