@@ -16,11 +16,15 @@ export function signed(v: number | null | undefined, decimals = 2): string {
 }
 
 /** 最新价胶囊（markLine 右轴端点标签）配置，color 为胶囊底色（涨跌色） */
-export function lastPriceLabel(close: number | null | undefined, color: string) {
+export function lastPriceLabel(
+  close: number | null | undefined,
+  color: string,
+  decimals = 2,
+) {
   return {
     show: true,
     position: 'end' as const,
-    formatter: fmt(close),
+    formatter: fmt(close, decimals),
     backgroundColor: color,
     color: '#fff',
     borderRadius: 3,

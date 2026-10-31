@@ -8,58 +8,23 @@ import type { EChartsOption, TitleComponentOption } from 'echarts'
 import dayjs from 'dayjs'
 
 import { fmt, FONT_MONO, lastPriceLabel, signed, WEEKDAYS } from '@/components/charts/chartShared'
+import {
+  alignedGrid,
+  computePriceAxisRange,
+  sliderDataZoom,
+} from '@/components/charts/chartLayout'
 import { fallHex, riseHex } from '@/utils/formatters'
 import { deriveAmplitude, deriveBarChange, formatWanShou } from '@/utils/kline'
 
 import type { StockChartViewIndicators } from './StockChartView'
-import { BORDER_COLOR, GRID_COLOR, TEXT_MAIN, TEXT_MUTED } from './constants'
+import { BORDER_COLOR, GRID_COLOR, STOCK_GRID_EDGES, TEXT_MAIN, TEXT_MUTED } from './constants'
 import type { KlineChartData } from './klineData'
 import { buildSubPane, computePaneLayout, MA_LEGEND_TOP_RESERVE } from './klinePanes'
 import type { KlineTradeMark } from './tradeMarkers'
 
-const ACCENT = '#5e6ad2'
-const ACCENT_SOFT = 'rgba(94,106,210,0.18)'
-
 /** 默认缩放窗口（dataZoom start:50 / end:100），与 option 中两条 dataZoom 一致。 */
 export const DEFAULT_ZOOM_START = 50
 export const DEFAULT_ZOOM_END = 100
-
-export interface PriceAxisRange {
-  yMin: number
-  yMax: number
-  pctMin: number
-  pctMax: number
-}
-
-/** computePriceAxisRange 所需的最小 bar 形状（个股/指数 K 线共用）。 */
-export interface PriceRangeBar {
-  low: number | null
-  high: number | null
-  close: number | null
-}
-
-/**
- * 按可见窗口 [startIdx, endIdx] 计算主图右轴（价格）与左轴（相对首根收盘的涨跌幅）范围。
- * 键盘/滑块缩放后由 datazoom 事件重算，使纵轴随可见区间自适应（对齐同花顺行为）。
- */
-export function computePriceAxisRange(
-  bars: PriceRangeBar[],
-  startIdx: number,
-  endIdx: number,
-): PriceAxisRange {
-  const slice = bars.slice(startIdx, endIdx + 1)
-  const lows = slice.map((b) => b.low).filter((v): v is number => v != null)
-  const highs = slice.map((b) => b.high).filter((v): v is number => v != null)
-  const pMin = lows.length > 0 ? Math.min(...lows) : 0
-  const pMax = highs.length > 0 ? Math.max(...highs) : 0
-  const pad = (pMax - pMin) * 0.05 || 1
-  const yMin = pMin - pad
-  const yMax = pMax + pad
-  const baseClose = bars[0]?.close
-  const toPct = (v: number): number =>
-    baseClose ? (v / baseClose - 1) * 100 : 0
-  return { yMin, yMax, pctMin: toPct(yMin), pctMax: toPct(yMax) }
-}
 
 function pctLabel(v: number): string {
   if (v > 0.005) return `{up|+${v.toFixed(1)}%}`
@@ -97,7 +62,7 @@ export function buildKlineOption(
   // yAxis 0=主图价格(右) 1=主图涨跌幅(左)，随后每个副图一根
 
   // 主图
-  grids.push({ left: 46, right: 60, top: layout[0].top, height: layout[0].height })
+  grids.push(alignedGrid(STOCK_GRID_EDGES, layout[0]))
   xAxes.push({
     type: 'category',
     data: dates,
@@ -327,32 +292,10 @@ export function buildKlineOption(
     yAxis: yAxes,
     dataZoom: [
       { type: 'inside', xAxisIndex: xAxes.map((_, i) => i), start: DEFAULT_ZOOM_START, end: DEFAULT_ZOOM_END },
-      {
-        show: true,
-        xAxisIndex: xAxes.map((_, i) => i),
-        type: 'slider',
-        top: height - 28,
+      sliderDataZoom(height, xAxes.map((_, i) => i), {
         start: DEFAULT_ZOOM_START,
         end: DEFAULT_ZOOM_END,
-        height: 20,
-        borderColor: BORDER_COLOR,
-        backgroundColor: 'transparent',
-        fillerColor: ACCENT_SOFT,
-        handleIcon:
-          'path://M0,0h2v18h-2z M5,0h2v18h-2z M10,0h2v18h-2z',
-        handleSize: '65%',
-        handleStyle: { color: '#2e323c', borderColor: 'transparent' },
-        moveHandleStyle: { color: ACCENT, opacity: 0.5 },
-        dataBackground: {
-          lineStyle: { color: 'rgba(140,143,152,0.35)', width: 0.5 },
-          areaStyle: { color: 'rgba(140,143,152,0.12)' },
-        },
-        selectedDataBackground: {
-          lineStyle: { color: ACCENT, width: 0.8 },
-          areaStyle: { color: 'rgba(94,106,210,0.10)' },
-        },
-        textStyle: { color: TEXT_MUTED, fontSize: 9, fontFamily: FONT_MONO },
-      },
+      }),
     ],
     series,
   }
