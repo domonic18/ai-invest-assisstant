@@ -18,9 +18,10 @@ from typing import Any, Literal
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.collector_log import CollectorLog
+from app.services.trading.agent_review_content import REVIEW_SKILL_ID
 
-#: 复盘任务类型名（TASK_SPECS 键，定时与按需共用）
-REVIEW_TASK_NAME = "paper-trade-review"
+#: 复盘任务类型名（TASK_SPECS 键，定时与按需共用；与落库 skill_id 同名）
+REVIEW_TASK_NAME = REVIEW_SKILL_ID
 
 
 async def enqueue_review_generation(

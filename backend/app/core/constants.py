@@ -15,6 +15,10 @@ INDEX_CODES: dict[str, str] = {
 BENCHMARK_INDEX_CODE = "sh000300"
 BENCHMARK_INDEX_NAME = "沪深300"
 
+# 模拟盘盘后同步时刻：仅用于用户文案引导（实际调度在 collector_task seed，
+# 任务名 paper_trade_sync_1600 与之对应），改档期时文案与 seed 需一并调整
+PAPER_TRADE_SYNC_CUTOFF = "16:00"
+
 # 指数日 K 默认采集集：大盘四大指数 + 复盘基准
 INDEX_KLINE_CODES: tuple[str, ...] = (*INDEX_CODES, BENCHMARK_INDEX_CODE)
 

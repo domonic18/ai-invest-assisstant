@@ -12,11 +12,13 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.clock import CN_TZ, utc_now
+from app.core.constants import PAPER_TRADE_SYNC_CUTOFF
 from app.models.collector_log import CollectorLog
 from app.models.collector_task import CollectorTask
 from app.models.paper_trade import TradingAgent
 from app.schemas.paper_trade import AgentNextTask
 from app.services.market import trade_calendar_service
+from app.services.trading.agent_review_content import REVIEW_SKILL_ID
 from app.services.trading.agent_review_periods import (
     is_last_trading_day_of_month,
     is_last_trading_day_of_week,
@@ -32,8 +34,18 @@ _OVERVIEW_TASKS: tuple[tuple[str, str, str], ...] = (
 # 显示名（含北京时间排程时刻）, cadence 注册列；sync 为全局任务无 cadence）
 _AUTOMATION_TASKS: tuple[tuple[str, str, str, str | None], ...] = (
     ("agent_daily_plan_1900", "agent-daily-plan", "每日选股与交易计划（19:30）", "plan_cadence"),
-    ("paper_trade_review_1610", "paper-trade-review", "模拟盘分层复盘（19:00）", "review_cadence"),
-    ("paper_trade_sync_1600", "paper-trade-sync", "模拟盘盘后同步（16:00）", None),
+    (
+        "paper_trade_review_1610",
+        REVIEW_SKILL_ID,
+        "模拟盘分层复盘（19:00）",
+        "review_cadence",
+    ),
+    (
+        "paper_trade_sync_1600",
+        "paper-trade-sync",
+        f"模拟盘盘后同步（{PAPER_TRADE_SYNC_CUTOFF}）",
+        None,
+    ),
 )
 
 # cadence 门控下 cron 候选扫描上限（月频最坏 ~23 个工作日候选）
@@ -41,7 +53,7 @@ _CRON_MAX_CANDIDATES = 40
 
 # 总览运行态判定的两个 agent 定时任务 collector_log 键（与 _AUTOMATION_TASKS log 键一致；
 # spider 串行多 Agent 循环只落全局一条 log，working 判定为近似——未来写 meta.agent_key 可精确）
-_RUNNING_LOG_KEYS: tuple[str, ...] = ("agent-daily-plan", "paper-trade-review")
+_RUNNING_LOG_KEYS: tuple[str, ...] = ("agent-daily-plan", REVIEW_SKILL_ID)
 
 
 async def _next_cron_occurrence(

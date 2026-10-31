@@ -19,8 +19,10 @@ from app.services.review.market_review_service import ReviewInputDataNotReadyErr
 from app.services.trading import agent_registry, agent_review_service
 from app.services.trading.agent_review_errors import PaperTradeReviewLockedError
 from app.services.trading.agent_review_periods import (
-    is_last_trading_day_of_month,
-    is_last_trading_day_of_week,
+    AUTO_REVIEW_PERIODS,
+    CADENCE_PERIODS,
+    DEFAULT_REVIEW_PERIOD,
+    is_period_end,
 )
 from app.services.trading.agent_review_window import ReviewWindowRequest
 from app.services.trading.errors import AgentAccountNotDesignatedError
@@ -45,29 +47,21 @@ async def _run_one(
     metadata: dict[str, Any] = {}
     async with AsyncSessionLocal() as session:
         agent = await agent_registry.get_agent(session, agent_key)
-        cadence = agent.review_cadence
+        primary = CADENCE_PERIODS.get(agent.review_cadence, DEFAULT_REVIEW_PERIOD)
 
-        if cadence == "weekly":
-            periods = (
-                ["week"]
-                if await is_last_trading_day_of_week(session, trade_date)
-                else []
-            )
-        elif cadence == "monthly":
-            periods = (
-                ["month"]
-                if await is_last_trading_day_of_month(session, trade_date)
-                else []
-            )
+        if primary == DEFAULT_REVIEW_PERIOD:
+            # 日度：每交易日生成日度，周期末日历判定加发周/月（失败不拖垮日度结果）
+            periods = [primary]
+            for extra in AUTO_REVIEW_PERIODS:
+                if extra != primary and await is_period_end(
+                    session, extra, trade_date
+                ):
+                    periods.append(extra)
         else:
-            periods = ["day"]
-            # 周期末日历判定加发（失败不拖垮日度结果）
-            for period, checker in (
-                ("week", is_last_trading_day_of_week),
-                ("month", is_last_trading_day_of_month),
-            ):
-                if await checker(session, trade_date):
-                    periods.append(period)
+            # 周/月频：仅周期末生成对应周期
+            periods = (
+                [primary] if await is_period_end(session, primary, trade_date) else []
+            )
 
         if not periods:
             return None

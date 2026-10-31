@@ -14,6 +14,7 @@ from typing import Literal, cast
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.constants import PAPER_TRADE_SYNC_CUTOFF
 from app.core.exceptions import BadRequestError
 from app.models.paper_trade import TradingAgent
 from app.services.trading.agent_review_errors import ReviewWindowNotReadyError
@@ -32,9 +33,20 @@ from app.services.trading.agent_review_periods import (
 #: 快捷项作用域：current=本期（周期至今）/ previous=上一完整周期
 ReviewWindowScope = Literal["current", "previous"]
 
+#: 作用域运行时白名单（Literal 不可迭代）：MCP 等外部入口校验共用
+REVIEW_WINDOW_SCOPES: tuple[ReviewWindowScope, ...] = ("current", "previous")
+
+#: 未显式指定作用域时的默认值
+DEFAULT_REVIEW_SCOPE: ReviewWindowScope = "current"
+
+#: 缺少周期与区间时的统一文案（结构校验与防御式契约共用）
+_MISSING_PERIOD_MESSAGE = "缺少复盘周期：请提供 period 或自定义区间"
+
 #: 盘后同步未落库提示；手动路径附引导（定时路径由 Celery 退避重试，不加引导）
-_SYNC_PENDING_MESSAGE = "{day} 盘后同步（16:00）尚未落库，复盘输入未就绪"
-_MANUAL_SYNC_HINT = "；请改用「上期」或历史区间，或 16:00 后再试"
+_SYNC_PENDING_MESSAGE = (
+    "{day} 盘后同步（" + PAPER_TRADE_SYNC_CUTOFF + "）尚未落库，复盘输入未就绪"
+)
+_MANUAL_SYNC_HINT = "；请改用「上期」或历史区间，或 " + PAPER_TRADE_SYNC_CUTOFF + " 后再试"
 
 
 def sync_pending_message(day: date, *, manual: bool) -> str:
@@ -49,7 +61,7 @@ class ReviewWindowRequest:
 
     period: ReviewPeriod | None = None
     trade_date: date | None = None
-    scope: ReviewWindowScope = "current"
+    scope: ReviewWindowScope = DEFAULT_REVIEW_SCOPE
     start_date: date | None = None
     end_date: date | None = None
 
@@ -59,7 +71,7 @@ class ReviewWindowRequest:
         *,
         period: str | None = None,
         trade_date: date | None = None,
-        scope: str = "current",
+        scope: str = DEFAULT_REVIEW_SCOPE,
         start_date: date | None = None,
         end_date: date | None = None,
     ) -> ReviewWindowRequest:
@@ -71,7 +83,7 @@ class ReviewWindowRequest:
         """
         if period is not None and period not in REVIEW_PERIODS:
             raise BadRequestError(f"未知复盘周期：{period}")
-        if scope not in ("current", "previous"):
+        if scope not in REVIEW_WINDOW_SCOPES:
             raise BadRequestError(f"未知复盘作用域：{scope}")
         if (start_date is None) != (end_date is None):
             raise BadRequestError("自定义区间须同时提供开始日与结束日")
@@ -82,7 +94,7 @@ class ReviewWindowRequest:
                     f"{start_date.isoformat()}"
                 )
         elif period is None:
-            raise BadRequestError("缺少复盘周期：请提供 period 或自定义区间")
+            raise BadRequestError(_MISSING_PERIOD_MESSAGE)
         return cls(
             period=cast(ReviewPeriod | None, period),
             trade_date=trade_date,
@@ -130,7 +142,7 @@ async def resolve_requested_window(
         return window
 
     if request.period is None:  # from_values 已拦截；保持防御式契约
-        raise BadRequestError("缺少复盘周期：请提供 period 或自定义区间")
+        raise BadRequestError(_MISSING_PERIOD_MESSAGE)
     if request.trade_date is not None:
         if not await trade_calendar_service.is_trading_day(
             session, request.trade_date

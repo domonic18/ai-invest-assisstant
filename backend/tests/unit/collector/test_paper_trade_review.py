@@ -84,12 +84,13 @@ def _patch_env(
             generate or AsyncMock(return_value=_result()),
         ),
         patch(
-            "collector.spiders.paper_trade_review_scheduled.is_last_trading_day_of_week",
-            AsyncMock(return_value=week_end),
-        ),
-        patch(
-            "collector.spiders.paper_trade_review_scheduled.is_last_trading_day_of_month",
-            AsyncMock(return_value=month_end),
+            "collector.spiders.paper_trade_review_scheduled.is_period_end",
+            AsyncMock(
+                side_effect=lambda _s, period, _d: {
+                    "week": week_end,
+                    "month": month_end,
+                }.get(period, True)
+            ),
         ),
     )
 

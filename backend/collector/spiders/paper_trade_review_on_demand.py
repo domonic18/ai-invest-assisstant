@@ -20,7 +20,10 @@ from app.services.trading.agent_review_errors import (
     PaperTradeReviewLockedError,
     ReviewWindowNotReadyError,
 )
-from app.services.trading.agent_review_window import ReviewWindowRequest
+from app.services.trading.agent_review_window import (
+    DEFAULT_REVIEW_SCOPE,
+    ReviewWindowRequest,
+)
 from app.services.trading.errors import AgentAccountNotDesignatedError
 from collector.core.base import CollectResult, CollectStatus
 from collector.spiders.paper_trade_review_common import (
@@ -63,7 +66,7 @@ async def run_on_demand(
         request = ReviewWindowRequest.from_values(
             period=cast(str | None, kwargs.get("period")),
             trade_date=parsed_date,
-            scope=kwargs.get("scope") or "current",
+            scope=kwargs.get("scope") or DEFAULT_REVIEW_SCOPE,
             start_date=start_date,
             end_date=end_date,
         )

@@ -21,8 +21,9 @@ from app.services.review.market_review_service import ReviewInputDataNotReadyErr
 from app.services.trading import agent_plan_service, agent_registry
 from app.services.trading.agent_plan_service import PlanGenerationLockedError
 from app.services.trading.agent_review_periods import (
-    is_last_trading_day_of_month,
-    is_last_trading_day_of_week,
+    CADENCE_PERIODS,
+    DEFAULT_REVIEW_PERIOD,
+    is_period_end,
 )
 from app.services.trading.errors import (
     AgentAccountNotDesignatedError,
@@ -40,11 +41,8 @@ _PER_AGENT_SKIPPABLE = (
 
 async def _plan_due(session: AsyncSession, agent: TradingAgent, trade_date: date) -> bool:
     """按注册行 plan_cadence 判定 trade_date 是否为计划生成日（D28）。"""
-    if agent.plan_cadence == "weekly":
-        return await is_last_trading_day_of_week(session, trade_date)
-    if agent.plan_cadence == "monthly":
-        return await is_last_trading_day_of_month(session, trade_date)
-    return True
+    period = CADENCE_PERIODS.get(agent.plan_cadence, DEFAULT_REVIEW_PERIOD)
+    return await is_period_end(session, period, trade_date)
 
 
 class AgentDailyPlanCollector(BaseCollector):

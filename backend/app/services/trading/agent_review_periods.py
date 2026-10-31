@@ -38,6 +38,19 @@ REVIEW_PERIODS: tuple[ReviewPeriod, ...] = (
 #: 长周期：不做全量逐笔（输入筛关键交易）、只沉淀体系级经验（§4.2/§4.6）
 LONG_REVIEW_PERIODS: tuple[ReviewPeriod, ...] = ("quarter", "half_year", "year")
 
+#: 未显式指定窗口时的默认档（读取/生成入口共用）
+DEFAULT_REVIEW_PERIOD: ReviewPeriod = "day"
+
+#: Agent 注册行 review/plan cadence → 报告周期（定时日/周/月共用）
+CADENCE_PERIODS: dict[str, ReviewPeriod] = {
+    "daily": "day",
+    "weekly": "week",
+    "monthly": "month",
+}
+
+#: 定时任务自动覆盖的周期（季/半年/年按需生成）
+AUTO_REVIEW_PERIODS: tuple[ReviewPeriod, ...] = tuple(CADENCE_PERIODS.values())
+
 _MARKET = "cn"
 
 #: 自定义区间超过 12 个月时的提示（§4.3：> 12 月提示改用年档）
@@ -286,3 +299,14 @@ async def _next_trading_day(session: AsyncSession, day: date) -> date | None:
     from app.services.market.trade_calendar_service import next_trading_day
 
     return await next_trading_day(session, day)
+
+
+async def is_period_end(
+    session: AsyncSession, period: ReviewPeriod, day: date
+) -> bool:
+    """周期末判定：week/month 看下一交易日是否跨周/跨月；日与长周期恒为 True。"""
+    if period == "week":
+        return await is_last_trading_day_of_week(session, day)
+    if period == "month":
+        return await is_last_trading_day_of_month(session, day)
+    return True

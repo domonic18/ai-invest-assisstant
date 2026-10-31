@@ -53,10 +53,13 @@ from app.services.trading.agent_review_window import (
 )
 from app.services.trading.agent_run_recorder import AgentRunRecorder
 
+#: agent_run.error_msg 文本上限（与落库字段长度约束对齐）
+_ERROR_TEXT_MAX_LEN = 2000
+
 
 def _error_text(exc: BaseException) -> str:
-    """异常转 agent_run.error_msg 文本（类型名 + 消息，截断 2000 字符）。"""
-    return f"{type(exc).__name__}: {exc}"[:2000]
+    """异常转 agent_run.error_msg 文本（类型名 + 消息，截断到上限）。"""
+    return f"{type(exc).__name__}: {exc}"[:_ERROR_TEXT_MAX_LEN]
 
 
 async def generate_review(
