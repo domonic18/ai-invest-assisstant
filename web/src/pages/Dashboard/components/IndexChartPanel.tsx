@@ -12,6 +12,8 @@ interface IndexChartPanelProps {
   tradeDate?: string
   /** 无分钟线数据的标的（沪深300ETF/富时A50），隐藏「分时」选项。 */
   noIntraday?: boolean
+  /** K 线详情页开启底部滑块缩放（概览卡片不传）。 */
+  showSlider?: boolean
 }
 
 type PeriodKey = 'intraday' | IndexKlinePeriod
@@ -25,7 +27,7 @@ const PERIOD_OPTIONS: { value: PeriodKey; label: string }[] = [
   { value: 'yearly', label: '年线' },
 ]
 
-export function IndexChartPanel({ code, tradeDate, noIntraday }: IndexChartPanelProps) {
+export function IndexChartPanel({ code, tradeDate, noIntraday, showSlider }: IndexChartPanelProps) {
   const [period, setPeriod] = useState<PeriodKey>(noIntraday ? 'daily' : 'intraday')
   const maConfigs = useMaConfigs()
 
@@ -46,7 +48,12 @@ export function IndexChartPanel({ code, tradeDate, noIntraday }: IndexChartPanel
       {period === 'intraday' ? (
         <IndexIntradayPanel code={code} tradeDate={tradeDate} />
       ) : (
-        <IndexKlinePanel code={code} period={period} maConfigs={maConfigs} />
+        <IndexKlinePanel
+          code={code}
+          period={period}
+          maConfigs={maConfigs}
+          showSlider={showSlider}
+        />
       )}
     </div>
   )
