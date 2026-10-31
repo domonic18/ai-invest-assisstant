@@ -32,14 +32,13 @@ import { apiErrorMessage, apiErrorStatus } from '@/utils/errorMessage'
 import { useAgentKey } from './agentKeyContext'
 import { ReviewCompareModal } from './ReviewCompareModal'
 import { ReviewContent } from './ReviewContent'
-import { reviewEmptyDescription, REVIEW_PERIOD_OPTIONS } from './reviewMeta'
+import {
+  reviewEmptyDescription,
+  REVIEW_PERIOD_OPTIONS,
+  REVIEW_SCOPE_OPTIONS,
+} from './reviewMeta'
 import { useReviewGeneration } from './useReviewGeneration'
 import { useReviewWindow } from './useReviewWindow'
-
-const SCOPE_OPTIONS = [
-  { label: '本期', value: 'current' },
-  { label: '上期', value: 'previous' },
-]
 
 export function ReviewPanel() {
   const agentKey = useAgentKey()
@@ -81,7 +80,7 @@ export function ReviewPanel() {
             value={scope}
             disabled={Boolean(range)}
             onChange={(v) => changeScope(v as TradingReviewScope)}
-            options={SCOPE_OPTIONS}
+            options={REVIEW_SCOPE_OPTIONS}
           />
           <MarkedDatePicker
             value={selectedDate}

@@ -162,6 +162,9 @@ export function isReviewSuccessStatus(status: string | null | undefined): boolea
   return status != null && REVIEW_SUCCESS_STATES.has(status)
 }
 
+/** 复盘生成任务状态轮询间隔（分钟级生成，3s 足够及时且不压服务）。 */
+export const REVIEW_GENERATION_POLL_MS = 3000
+
 /** 复盘生成任务状态（派发后轮询采集日志，终态自动停止）。 */
 export function useReviewGenerationStatus(logId: number | null) {
   return useQuery({
@@ -169,7 +172,9 @@ export function useReviewGenerationStatus(logId: number | null) {
     queryFn: () => fetchReviewGenerationStatus(logId as number),
     enabled: logId != null,
     refetchInterval: (query) =>
-      isReviewTerminalStatus(query.state.data?.collector_status) ? false : 3000,
+      isReviewTerminalStatus(query.state.data?.collector_status)
+        ? false
+        : REVIEW_GENERATION_POLL_MS,
   })
 }
 

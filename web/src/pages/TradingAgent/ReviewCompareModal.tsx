@@ -21,17 +21,15 @@ import { useCompareTradingAgentReviews } from '@/hooks/useTradingAgent'
 import { useColorScheme } from '@/stores/settings'
 import { DATE_FORMAT } from '@/utils/formatters'
 
-import { describeWindow, REVIEW_PERIOD_OPTIONS } from './reviewMeta'
+import { describeWindow, REVIEW_PERIOD_OPTIONS, REVIEW_SCOPE_OPTIONS } from './reviewMeta'
 import {
   compareMetricColor,
   COMPARE_METRIC_ROWS,
   type ReviewMetricRow,
 } from './reviewMetricsMeta'
 
-const SCOPE_OPTIONS = [
-  { label: '本期', value: 'current' },
-  { label: '上期', value: 'previous' },
-]
+/** B 窗口默认周期（面板 A 无周期即自定义区间时使用）。 */
+const DEFAULT_COMPARE_PERIOD: TradingReviewPeriod = 'month'
 
 function draftToWindow(
   period: TradingReviewPeriod,
@@ -67,7 +65,7 @@ export function ReviewCompareModal({
   baseWindow,
 }: ReviewCompareModalProps) {
   useColorScheme()
-  const defaultPeriod = baseWindow.period ?? 'month'
+  const defaultPeriod = baseWindow.period ?? DEFAULT_COMPARE_PERIOD
   const [period, setPeriod] = useState<TradingReviewPeriod>(defaultPeriod)
   const [scope, setScope] = useState<TradingReviewScope>('previous')
   const [tradeDate, setTradeDate] = useState<Dayjs | null>(null)
@@ -76,7 +74,7 @@ export function ReviewCompareModal({
 
   useEffect(() => {
     if (!open) return
-    setPeriod(baseWindow.period ?? 'month')
+    setPeriod(baseWindow.period ?? DEFAULT_COMPARE_PERIOD)
     setScope('previous')
     setTradeDate(null)
     setSnapshot(null)
@@ -143,7 +141,7 @@ export function ReviewCompareModal({
             size="small"
             value={scope}
             onChange={setScope}
-            options={SCOPE_OPTIONS}
+            options={REVIEW_SCOPE_OPTIONS}
             style={{ width: 90 }}
           />
           <DatePicker

@@ -8,6 +8,8 @@ import type {
   TradingAgentReviewWindow,
 } from '@ai-invest/shared'
 
+import { bjNow, toBeijing } from '@/utils/beijing'
+
 export const REVIEW_PERIOD_LABELS: Record<TradingReviewPeriod, string> = {
   day: '日',
   week: '周',
@@ -20,6 +22,14 @@ export const REVIEW_PERIOD_LABELS: Record<TradingReviewPeriod, string> = {
 export const REVIEW_PERIOD_OPTIONS = (
   Object.keys(REVIEW_PERIOD_LABELS) as TradingReviewPeriod[]
 ).map((value) => ({ label: REVIEW_PERIOD_LABELS[value], value }))
+
+export const REVIEW_SCOPE_OPTIONS: Array<{
+  label: string
+  value: TradingReviewScope
+}> = [
+  { label: '本期', value: 'current' },
+  { label: '上期', value: 'previous' },
+]
 
 /** 定时任务自动生成的周期（日/周/月）；季/半年/年按需生成。 */
 export const AUTO_REVIEW_PERIODS: readonly TradingReviewPeriod[] = ['day', 'week', 'month']
@@ -57,8 +67,9 @@ export function reviewEmptyDescription(
       : `${label}档按需生成，点击「生成复盘」触发`
   }
   if (scope === 'previous') {
-    return `上一${label}复盘尚未生成（每交易日 19:00 盘后自动生成）`
+    return `上一${label}复盘尚未生成（每交易日盘后自动生成）`
   }
-  const when = tradeDate && dayjs(tradeDate).isBefore(dayjs(), 'day') ? '该日' : '当前'
-  return `${when}${label}复盘尚未生成（每交易日 19:00 盘后自动生成）`
+  const when =
+    tradeDate && toBeijing(dayjs(tradeDate)).isBefore(bjNow(), 'day') ? '该日' : '当前'
+  return `${when}${label}复盘尚未生成（每交易日盘后自动生成）`
 }
