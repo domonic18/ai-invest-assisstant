@@ -76,6 +76,7 @@ env.config
 # Playwright
 # ====================
 .playwright/
+.playwright-mcp/
 playwright-report/
 test-results/
 
