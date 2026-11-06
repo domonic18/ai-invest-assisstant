@@ -8,7 +8,9 @@ from celery.exceptions import Retry, SoftTimeLimitExceeded
 
 from collector.celery_tasks import (
     AsyncTask,
+    CollectorTaskFailedError,
     _result_to_dict,
+    _retry_countdown,
     run_collector_task,
 )
 from collector.core.base import CollectResult, CollectStatus
@@ -104,6 +106,132 @@ class TestLogAwareTask:
 
         mock_mark.assert_awaited_once()
         mock_dl.assert_awaited_once()
+
+
+@pytest.mark.unit
+class TestRetryCountdown:
+    def test_backoff_grows_exponentially(self) -> None:
+        options = {"retry_backoff": 30, "retry_backoff_max": 300}
+        assert _retry_countdown(options, 0) == 30
+        assert _retry_countdown(options, 1) == 60
+        assert _retry_countdown(options, 2) == 120
+        assert _retry_countdown(options, 3) == 240
+
+    def test_backoff_capped(self) -> None:
+        options = {"retry_backoff": 30, "retry_backoff_max": 300}
+        assert _retry_countdown(options, 4) == 300
+        assert _retry_countdown(options, 10) == 300
+
+
+@pytest.mark.unit
+class TestFailedResultRetry:
+    """采集器以返回值表达失败（CollectResult.status=FAILED）：必须转成异常
+    交给 Celery 重试/死信，不能被记为任务成功。"""
+
+    @staticmethod
+    def _failed_result() -> CollectResult:
+        return CollectResult(
+            source="sina",
+            data_type="quote",
+            status=CollectStatus.FAILED,
+            items_collected=0,
+            items_stored=0,
+            errors=["[sina] connection reset"],
+        )
+
+    @patch("collector.celery_tasks.run_task", new_callable=AsyncMock)
+    def test_failed_result_schedules_retry(self, mock_run_task: AsyncMock) -> None:
+        mock_run_task.return_value = self._failed_result()
+
+        task = run_collector_task
+        task.push_request(id="celery-id", retries=0)
+
+        retry_kwargs: dict = {}
+
+        def _fake_retry(**kwargs: object) -> None:
+            retry_kwargs.update(kwargs)
+            raise Retry()
+
+        with (
+            patch.object(run_collector_task, "retry", side_effect=_fake_retry),
+            patch(
+                "collector.celery_tasks._update_task_schedule_state", new=AsyncMock()
+            ) as mock_update,
+        ):
+            with pytest.raises(Retry):
+                task.run({"task": "quote", "log_id": 7})
+
+        task.pop_request()
+
+        # quote → realtime 队列：backoff 30s / 最多 3 次
+        assert retry_kwargs["countdown"] == 30
+        assert retry_kwargs["max_retries"] == 3
+        assert isinstance(retry_kwargs["exc"], CollectorTaskFailedError)
+        assert "connection reset" in str(retry_kwargs["exc"])
+        mock_update.assert_awaited_once()
+
+    @patch("collector.celery_tasks.run_task", new_callable=AsyncMock)
+    def test_failed_result_exhausted_raises_for_dead_letter(
+        self, mock_run_task: AsyncMock
+    ) -> None:
+        """重试耗尽：异常上抛，由 on_failure 写死信。"""
+        mock_run_task.return_value = self._failed_result()
+
+        task = run_collector_task
+        task.push_request(id="celery-id", retries=3)
+
+        with patch(
+            "collector.celery_tasks._update_task_schedule_state", new=AsyncMock()
+        ):
+            with pytest.raises(CollectorTaskFailedError):
+                task.run({"task": "quote", "log_id": 7})
+
+        task.pop_request()
+
+    @patch("collector.celery_tasks.run_task", new_callable=AsyncMock)
+    def test_partial_result_does_not_retry(self, mock_run_task: AsyncMock) -> None:
+        """部分成功不是失败：不重试。"""
+        mock_run_task.return_value = CollectResult(
+            source="sina",
+            data_type="quote",
+            status=CollectStatus.PARTIAL,
+            items_collected=5,
+            items_stored=3,
+            errors=["item 2: bad field"],
+        )
+
+        task = run_collector_task
+        task.push_request(id="celery-id", retries=0)
+
+        with patch(
+            "collector.celery_tasks._update_task_schedule_state", new=AsyncMock()
+        ):
+            returned = task.run({"task": "quote", "log_id": 7})
+
+        task.pop_request()
+
+        assert returned["status"] == "partial"
+
+    @patch("collector.celery_tasks.run_task", new_callable=AsyncMock)
+    def test_skipped_result_does_not_retry(self, mock_run_task: AsyncMock) -> None:
+        """良性跳过不是失败：不重试（否则每次非交易日都会重试到死信）。"""
+        mock_run_task.return_value = CollectResult(
+            source="internal",
+            data_type="quote",
+            status=CollectStatus.SKIPPED,
+        )
+
+        task = run_collector_task
+        task.push_request(id="celery-id", retries=0)
+
+        with patch(
+            "collector.celery_tasks._update_task_schedule_state", new=AsyncMock()
+        ):
+            returned = task.run({"task": "quote", "log_id": 7})
+
+        task.pop_request()
+
+        assert returned["status"] == "skipped"
 
 
 @pytest.mark.unit

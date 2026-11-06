@@ -1,5 +1,6 @@
 """Celery Beat 数据库调度器契约测试。"""
 
+from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -129,3 +130,89 @@ class TestCollectorDatabaseScheduler:
             scheduler = CollectorDatabaseScheduler(app=app)
 
         assert "collector-task-manual-task" not in scheduler.schedule
+
+
+@pytest.mark.unit
+class TestScheduleEntryRunState:
+    """重建条目必须保留运行态，否则定时槽位会被静默跳过。
+
+    celery 的 sync 落点常落在槽位分钟内，而 crontab 判定 `last_run_at`
+    落在 `[槽位分钟, +1min)` 时该槽位尚未到期——重建条目等于把槽位推到次日
+    （2026-11-06 生产 19:30 槽位 8 个任务全部未派发）。
+    """
+
+    _ROWS = [
+        {
+            "task_name": "plan-1900",
+            "task_type": "agent-daily-plan",
+            "source": "internal",
+            "schedule": "30 19 * * 1-5",
+        }
+    ]
+
+    @staticmethod
+    def _scheduler(rows: list[dict]) -> CollectorDatabaseScheduler:
+        app = MagicMock()
+        app.conf.beat_schedule = {}
+        with patch.object(
+            CollectorDatabaseScheduler,
+            "_fetch_active_schedules",
+            return_value=rows,
+        ):
+            return CollectorDatabaseScheduler(app=app)
+
+    @staticmethod
+    def _sync(scheduler: CollectorDatabaseScheduler, rows: list[dict]) -> None:
+        with patch.object(
+            CollectorDatabaseScheduler,
+            "_fetch_active_schedules",
+            return_value=rows,
+        ):
+            scheduler.sync()
+
+    def test_reload_preserves_last_run_at(self) -> None:
+        scheduler = self._scheduler(self._ROWS)
+        entry = scheduler.schedule["collector-task-plan-1900"]
+        entry.last_run_at = datetime(2026, 11, 5, 19, 30, tzinfo=timezone.utc)
+
+        self._sync(scheduler, self._ROWS)
+
+        reloaded = scheduler.schedule["collector-task-plan-1900"]
+        assert reloaded.last_run_at == datetime(2026, 11, 5, 19, 30, tzinfo=timezone.utc)
+
+    def test_reload_preserves_due_state_at_slot(self) -> None:
+        """沿用运行态后，槽位时刻仍判定为到期。"""
+        scheduler = self._scheduler(self._ROWS)
+        entry = scheduler.schedule["collector-task-plan-1900"]
+        entry.last_run_at = datetime(2026, 11, 5, 19, 30, tzinfo=timezone.utc)
+
+        self._sync(scheduler, self._ROWS)
+
+        reloaded = scheduler.schedule["collector-task-plan-1900"]
+        slot = datetime(2026, 11, 6, 19, 30, tzinfo=timezone.utc)
+        reloaded.schedule.now = lambda: slot
+        due, _rem = reloaded.schedule.is_due(reloaded.last_run_at)
+        assert due is True
+
+    def test_schedule_change_resets_last_run_at(self) -> None:
+        """cron 变更等于新调度语义，运行态必须重置。"""
+        scheduler = self._scheduler(self._ROWS)
+        entry = scheduler.schedule["collector-task-plan-1900"]
+        entry.last_run_at = datetime(2026, 11, 5, 19, 30, tzinfo=timezone.utc)
+
+        self._sync(scheduler, [{**self._ROWS[0], "schedule": "0 20 * * 1-5"}])
+
+        reloaded = scheduler.schedule["collector-task-plan-1900"]
+        assert reloaded.last_run_at != datetime(2026, 11, 5, 19, 30, tzinfo=timezone.utc)
+
+    def test_crontab_skips_slot_when_last_run_at_inside_slot_minute(self) -> None:
+        """回归基线：last_run_at 落在槽位分钟内 → 该槽位判定未到期。"""
+        schedule = crontab(minute="30", hour="19", day_of_week="1-5")
+        slot = datetime(2026, 11, 6, 19, 30, tzinfo=timezone.utc)
+        schedule.now = lambda: slot
+
+        due, _rem = schedule.is_due(datetime(2026, 11, 6, 19, 30, 1, tzinfo=timezone.utc))
+        assert due is False
+
+        due, _rem = schedule.is_due(datetime(2026, 11, 5, 19, 30, tzinfo=timezone.utc))
+        assert due is True

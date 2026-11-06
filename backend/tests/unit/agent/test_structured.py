@@ -12,6 +12,7 @@ from pydantic import BaseModel, ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agent.runtime.structured import (
+    _ENDPOINT_PREFERRED_METHOD,
     _THINKING_REQUIRED_ENDPOINTS,
     STRUCTURED_THINKING_MAX_TOKENS,
     run_structured,
@@ -24,6 +25,14 @@ def _reset_thinking_endpoint_cache():
     _THINKING_REQUIRED_ENDPOINTS.clear()
     yield
     _THINKING_REQUIRED_ENDPOINTS.clear()
+
+
+@pytest.fixture(autouse=True)
+def _reset_preferred_method_cache():
+    """进程内「端点首选输出法」记忆按用例隔离。"""
+    _ENDPOINT_PREFERRED_METHOD.clear()
+    yield
+    _ENDPOINT_PREFERRED_METHOD.clear()
 
 
 def _rate_limit_error() -> openai.RateLimitError:
@@ -177,7 +186,9 @@ class TestRunStructured:
         assert len(structured.prompts) == 2
 
     @pytest.mark.asyncio
-    async def test_anthropic_provider_uses_json_schema(self) -> None:
+    async def test_anthropic_provider_prefers_function_calling(self) -> None:
+        """anthropic 协议默认走 function_calling（MiniMax 强制 adaptive thinking
+        时 json_schema 会烧满输出预算不吐 tool call，2026-11-06 生产实测）。"""
         structured = _FakeStructured([_Out(value="ok")])
         p_llm, p_model, fake_model = _patch_run_env(structured, protocol="anthropic")
         with p_llm, p_model:
@@ -187,12 +198,11 @@ class TestRunStructured:
                 user_prompt="hello",
             )
 
-        assert fake_model.methods == ["json_schema"]
+        assert fake_model.methods == ["function_calling"]
 
     @pytest.mark.asyncio
-    async def test_anthropic_json_schema_failure_falls_back_to_function_calling(self) -> None:
-        """MiniMax 等 anthropic 兼容端点不实现 output_format（返回纯文本）：
-        json_schema 解析失败后换 function_calling 兜底重试，而非同法空烧。"""
+    async def test_anthropic_function_calling_failure_falls_back_to_json_schema(self) -> None:
+        """首选法拿不到结构化输出时换 json_schema 兜底重试，而非同法空烧。"""
         structured = _FakeStructured(
             [OutputParserException("Invalid json output"), _Out(value="ok")]
         )
@@ -205,7 +215,58 @@ class TestRunStructured:
             )
 
         assert result == _Out(value="ok")
-        assert fake_model.methods == ["json_schema", "function_calling"]
+        assert fake_model.methods == ["function_calling", "json_schema"]
+
+    @pytest.mark.asyncio
+    async def test_endpoint_remembers_working_method(self) -> None:
+        """端点法记忆：某端点实测哪种法生效，后续优先走它，不再每次先撞失败法。"""
+        structured = _FakeStructured(
+            [
+                OutputParserException("no tool call"),
+                _Out(value="ok"),
+                _Out(value="ok2"),
+            ]
+        )
+        p_llm, p_model, fake_model = _patch_run_env(structured, protocol="anthropic")
+        with p_llm, p_model:
+            first = await run_structured(
+                cast(AsyncSession, object()),
+                result_type=_Out,
+                user_prompt="hello",
+            )
+            second = await run_structured(
+                cast(AsyncSession, object()),
+                result_type=_Out,
+                user_prompt="hello",
+            )
+
+        assert (first.value, second.value) == ("ok", "ok2")
+        assert fake_model.methods == [
+            "function_calling",
+            "json_schema",
+            "json_schema",
+        ]
+
+    @pytest.mark.asyncio
+    async def test_validation_error_triggers_repair_prompt(self) -> None:
+        """schema 校验失败：把校验错误回喂让模型改一次，而非直接上抛。"""
+        structured = _FakeStructured([_validation_error(), _Out(value="ok")])
+        patches = _patch_run_env(structured)
+        with patches[0], patches[1]:
+            result = await run_structured(
+                cast(AsyncSession, object()),
+                result_type=_Out,
+                user_prompt="hello",
+            )
+
+        assert result == _Out(value="ok")
+        assert len(structured.prompts) == 2
+        repair_prompt = structured.prompts[1]
+        assert "未通过 schema 校验" in repair_prompt
+        # 校验错误细节须回喂（含缺失字段名），模型才知道改什么
+        assert "value" in repair_prompt
+        # 原提示保留在前
+        assert repair_prompt.startswith("hello")
 
     @pytest.mark.asyncio
     async def test_thinking_required_error_retries_without_disabling(self) -> None:
@@ -222,7 +283,7 @@ class TestRunStructured:
 
         assert result == _Out(value="ok")
         assert fake_model.disable_flags == [True, False]
-        assert fake_model.methods == ["json_schema", "json_schema"]
+        assert fake_model.methods == ["function_calling", "function_calling"]
         # thinking 不可关的自愈重试放大输出预算（与 thinking 共享，防空文本）
         assert fake_model.max_tokens == [None, STRUCTURED_THINKING_MAX_TOKENS]
 
@@ -241,7 +302,11 @@ class TestRunStructured:
             )
 
         assert result == _Out(value="ok")
-        assert fake_model.methods == ["json_schema", "json_schema", "function_calling"]
+        assert fake_model.methods == [
+            "function_calling",
+            "function_calling",
+            "json_schema",
+        ]
         assert fake_model.disable_flags == [True, False, False]
 
     @pytest.mark.asyncio
@@ -475,8 +540,8 @@ class TestRunStructured:
 
         assert result == _Out(value="ok")
         assert [cfg.config_id for cfg in built] == [1, 2]
-        # method 按备用协议重选：主 openai function_calling → 备用 anthropic json_schema
-        assert fake_model.methods == ["function_calling", "json_schema"]
+        # method 按备用协议重选：主 openai function_calling → 备用 anthropic function_calling
+        assert fake_model.methods == ["function_calling", "function_calling"]
         p_mark.assert_awaited_once_with(1)
 
     @pytest.mark.asyncio
@@ -568,13 +633,13 @@ class TestMetaOut:
             )
 
         assert meta["model_name"] == "kimi"
-        assert meta["method"] == "json_schema"
+        assert meta["method"] == "function_calling"
         assert meta["failover"] is False
         assert isinstance(meta["latency_ms"], int)
 
     @pytest.mark.asyncio
     async def test_meta_method_reports_actual_fallback_method(self) -> None:
-        """json_schema 解析失败换 function_calling 兜底：method 记实际生效法名。"""
+        """function_calling 解析失败换 json_schema 兜底：method 记实际生效法名。"""
         structured = _FakeStructured([OutputParserException("bad json"), _Out(value="ok")])
         fake_model = _FakeModel(structured)
         meta: dict[str, Any] = {}
@@ -601,7 +666,7 @@ class TestMetaOut:
             )
 
         assert meta["model_name"] == "kimi"
-        assert meta["method"] == "function_calling"
+        assert meta["method"] == "json_schema"
         assert meta["failover"] is False
 
     @pytest.mark.asyncio
@@ -633,4 +698,4 @@ class TestMetaOut:
 
         assert meta["failover"] is True
         assert meta["model_name"] == "m2"
-        assert meta["method"] == "json_schema"
+        assert meta["method"] == "function_calling"

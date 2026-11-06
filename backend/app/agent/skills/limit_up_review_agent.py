@@ -13,7 +13,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agent.core.prompt_loader import PromptConfig
 from app.agent.runtime.model_factory import build_langchain_model
+from app.agent.skills.skill_failover import run_with_llm_failover
 from app.agent.skills.skill_runtime import invoke_structured, load_skill_instructions
+from app.services.admin.llm_config_service import ResolvedLLMConfig
 from app.services.admin.llm_task_binding_service import resolve_task_llm
 from app.services.review.limit_up_ai_service import LimitUpAttributionContent
 
@@ -41,8 +43,6 @@ async def run_skill(
     Raises:
         SkillOutputError: 重试一次后输出仍无法解析或不符合 schema。
     """
-    cfg = await resolve_task_llm(session, "limit_up_review")
-
     from deepagents import create_deep_agent
 
     from app.agent.tools import (
@@ -52,33 +52,41 @@ async def run_skill(
         search_news_by_date,
     )
 
-    agent = create_deep_agent(
-        model=build_langchain_model(cfg),
-        tools=[
-            get_limit_up_pool,
-            get_sector_overview,
-            search_news_by_date,
-            search_knowledge_base,
-        ],
-        system_prompt=(
-            f"{prompt_config.system_prompt.strip()}\n\n{load_skill_instructions(SKILL_ID)}"
-        ),
-        name=SKILL_ID,
-    )
-
     user_prompt = prompt_config.user_prompt_template.format(
         trade_date=trade_date.isoformat(),
         pool_count=pool_count,
     )
 
-    started = time.perf_counter()
-    content = await invoke_structured(
-        agent,
-        user_prompt,
-        LimitUpAttributionContent,
-        skill_id=SKILL_ID,
-        trade_date=trade_date.isoformat(),
+    async def _run(cfg: ResolvedLLMConfig) -> tuple[LimitUpAttributionContent, int]:
+        agent = create_deep_agent(
+            model=build_langchain_model(cfg),
+            tools=[
+                get_limit_up_pool,
+                get_sector_overview,
+                search_news_by_date,
+                search_knowledge_base,
+            ],
+            system_prompt=(
+                f"{prompt_config.system_prompt.strip()}\n\n{load_skill_instructions(SKILL_ID)}"
+            ),
+            name=SKILL_ID,
+        )
+
+        started = time.perf_counter()
+        content = await invoke_structured(
+            agent,
+            user_prompt,
+            LimitUpAttributionContent,
+            skill_id=SKILL_ID,
+            trade_date=trade_date.isoformat(),
+        )
+        latency_ms = int((time.perf_counter() - started) * 1000)
+        return content, latency_ms
+
+    (content, latency_ms), cfg = await run_with_llm_failover(
+        lambda: resolve_task_llm(session, "limit_up_review"),
+        _run,
+        task_key="limit_up_review",
     )
-    latency_ms = int((time.perf_counter() - started) * 1000)
     model_name = f"{cfg.provider}/{cfg.model_name}"
     return content, model_name, latency_ms

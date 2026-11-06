@@ -72,6 +72,11 @@ def make_celery_app() -> Celery:
         accept_content=["json"],
         task_acks_late=True,
         task_reject_on_worker_lost=True,
+        # 可见性超时长于全局硬限：acks_late 下消息在可见性窗口内不会被重新
+        # 投递，窗口短于 task_time_limit 会让超时长任务被重复投递。
+        broker_transport_options={
+            "visibility_timeout": collector_config.celery_broker_visibility_timeout,
+        },
         worker_prefetch_multiplier=1,
         # 全局兜底：任何漏发 per-message 时限的消息仍有最后防线。取值须大于
         # 最长的合法 per-message 硬限（kb 转写/视觉 4200），per-message 值优先。

@@ -34,6 +34,11 @@ class Settings(BaseSettings):
     celery_result_backend: str = "redis://localhost:6379/2"
     celery_task_default_queue: str = "collector.batch"
     celery_result_expires: int = 3600
+    # broker 可见性超时（秒）：消息被取出后在此时限内不被重新投递。
+    # 必须大于全局硬时限 task_time_limit(4800)，否则跑超时限的任务会被
+    # broker 重新投递，acks_late 下形成重复投递楔锁（2026-11-05 hk-kline
+    # 跑 3840s 被重投，heavy 队列积压 601 条）。
+    celery_broker_visibility_timeout: int = 7200
 
     # 后台服务状态探测（GET /admin/system/status）单服务超时（秒）
     status_probe_timeout: float = 3.0

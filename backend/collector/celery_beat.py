@@ -10,6 +10,7 @@ from collections.abc import Mapping
 from datetime import datetime, timezone
 from typing import Any
 
+import structlog
 from celery import current_app as celery_app
 from celery.beat import ScheduleEntry, Scheduler
 from celery.schedules import crontab
@@ -19,6 +20,30 @@ from app.core.database import AsyncSessionLocal
 from app.models.collector_task import CollectorTask
 from collector.celery_app import resolve_task_options
 from collector.core.cron import _normalize_cron_field, _parse_cron
+
+logger = structlog.get_logger(__name__)
+
+
+def _entry_unchanged(
+    entry: ScheduleEntry, schedule: crontab, args: tuple[Any, ...], options: dict[str, Any]
+) -> bool:
+    """entry 的调度定义是否与库中现状一致。
+
+    Args:
+        entry: 上一轮加载的调度条目。
+        schedule: 本轮解析出的 crontab。
+        args: 本轮解析出的任务参数。
+        options: 本轮解析出的队列与时限选项。
+
+    Returns:
+        调度定义未变时返回 True，可沿用旧条目的运行态。
+    """
+    # celery 无类型存根：ScheduleEntry 的属性都是 Any，比较结果须显式收敛
+    return bool(
+        entry.schedule == schedule
+        and entry.args == args
+        and entry.options == options
+    )
 
 
 class CollectorDatabaseScheduler(Scheduler):
@@ -36,6 +61,7 @@ class CollectorDatabaseScheduler(Scheduler):
 
     def sync(self) -> None:
         self._load_schedules()
+        logger.info("beat_schedule_synced", entries=len(self._schedule))
         super().sync()
 
     @property
@@ -74,27 +100,40 @@ class CollectorDatabaseScheduler(Scheduler):
                 continue
 
             entry_id = f"collector-task-{task_name}"
+            schedule = crontab(
+                minute=_normalize_cron_field(cron_params.get("minute", "*")),
+                hour=_normalize_cron_field(cron_params.get("hour", "*")),
+                day_of_week=_normalize_cron_field(cron_params.get("day_of_week", "*")),
+                day_of_month=_normalize_cron_field(cron_params.get("day", "*")),
+                month_of_year=_normalize_cron_field(cron_params.get("month", "*")),
+            )
+            args = (
+                {
+                    "task": task_type,
+                    "task_name": task_name,
+                    "preferred_source": source,
+                },
+            )
+            # 与 dispatcher 同源：定时任务同样携带软/硬时限，否则 beat 派发
+            # 的消息裸奔（2026-09-23 生产挂死事故根因之一）
+            options = resolve_task_options(task_type, source)
+
+            existing = self._schedule.get(entry_id)
+            if existing is not None and _entry_unchanged(existing, schedule, args, options):
+                # 沿用旧条目：last_run_at 是「本槽位是否已跑过」的唯一记忆，
+                # 重建条目会把它重置到 sync 落点；落点恰在槽位分钟内时
+                # crontab 判定该槽位未到期，整个槽位当天被跳过
+                # （2026-11-06 生产 19:30 槽位 8 个任务全部未派发）。
+                new_schedule[entry_id] = existing
+                continue
+
             new_schedule[entry_id] = ScheduleEntry(
                 name=entry_id,
                 task="collector.celery_tasks.run_collector_task",
-                schedule=crontab(
-                    minute=_normalize_cron_field(cron_params.get("minute", "*")),
-                    hour=_normalize_cron_field(cron_params.get("hour", "*")),
-                    day_of_week=_normalize_cron_field(cron_params.get("day_of_week", "*")),
-                    day_of_month=_normalize_cron_field(cron_params.get("day", "*")),
-                    month_of_year=_normalize_cron_field(cron_params.get("month", "*")),
-                ),
-                args=(
-                    {
-                        "task": task_type,
-                        "task_name": task_name,
-                        "preferred_source": source,
-                    },
-                ),
+                schedule=schedule,
+                args=args,
                 kwargs={},
-                # 与 dispatcher 同源：定时任务同样携带软/硬时限，否则 beat 派发
-                # 的消息裸奔（2026-09-23 生产挂死事故根因之一）
-                options=resolve_task_options(task_type, source),
+                options=options,
                 app=celery_app,
             )
 

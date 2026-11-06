@@ -15,4 +15,5 @@ celery_broker_url: str = _settings.celery_broker_url
 celery_result_backend: str = _settings.celery_result_backend
 celery_task_default_queue: str = _settings.celery_task_default_queue
 celery_result_expires: int = _settings.celery_result_expires
+celery_broker_visibility_timeout: int = _settings.celery_broker_visibility_timeout
 http_default_timeout_seconds: float = _settings.http_default_timeout_seconds

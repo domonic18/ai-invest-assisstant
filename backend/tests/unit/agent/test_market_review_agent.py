@@ -4,6 +4,7 @@ from datetime import date
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
+import openai
 import pytest
 
 from app.agent.core.prompt_loader import PromptConfig, PromptSection
@@ -42,9 +43,36 @@ class _FakeAgent:
         return {"messages": [SimpleNamespace(content=self.replies.pop(0))]}
 
 
+class _FailingAgent:
+    """首次调用抛给定异常，其后按 replies 返回正常回复。"""
+
+    def __init__(self, error: Exception, *replies: str) -> None:
+        self.error = error
+        self.replies = list(replies)
+        self.calls = 0
+
+    async def ainvoke(self, payload: dict, config: dict | None = None) -> dict:
+        self.calls += 1
+        if self.calls == 1:
+            raise self.error
+        return {"messages": [SimpleNamespace(content=self.replies.pop(0))]}
+
+
+def _rate_limit_error() -> openai.RateLimitError:
+    return openai.RateLimitError(
+        "You've reached your 5-hour usage limit",
+        response=SimpleNamespace(status_code=429, headers={}, request=None),
+        body=None,
+    )
+
+
 def _patch_run_env(agent: _FakeAgent):
     cfg = SimpleNamespace(
-        provider="openai", model_name="gpt-4o", api_key="k", base_url=None
+        config_id=1,
+        provider="openai",
+        model_name="gpt-4o",
+        api_key="k",
+        base_url=None,
     )
     return (
         patch(
@@ -164,3 +192,63 @@ class TestRunSkill:
 
         assert len(agent.prompts) == 1
         assert contents["overview"] == "综述"
+
+    @pytest.mark.asyncio
+    async def test_rate_limit_switches_to_backup_model(self) -> None:
+        """上游额度耗尽：标记主配置冷却，重新解析切备用模型重跑成功。"""
+        primary = SimpleNamespace(
+            config_id=1, provider="openai", model_name="gpt-4o", api_key="k"
+        )
+        backup = SimpleNamespace(
+            config_id=2, provider="minimax", model_name="minimax-m2", api_key="k2"
+        )
+        agent = _FailingAgent(_rate_limit_error(), _VALID_JSON)
+        with (
+            patch(
+                "app.agent.skills.market_review_agent.resolve_task_llm",
+                AsyncMock(side_effect=[primary, backup]),
+            ),
+            patch(
+                "app.agent.skills.market_review_agent.build_langchain_model",
+                lambda _cfg: object(),
+            ),
+            patch("deepagents.create_deep_agent", return_value=agent),
+            patch(
+                "app.agent.skills.skill_failover.mark_unhealthy", new=AsyncMock()
+            ) as p_mark,
+        ):
+            contents, model, _ = await run_skill(
+                AsyncMock(), trade_date=_TRADE_DATE, prompt_config=_PROMPT_CONFIG
+            )
+
+        assert contents["overview"] == "综述内容"
+        assert model == "minimax/minimax-m2"
+        p_mark.assert_awaited_once_with(1)
+
+    @pytest.mark.asyncio
+    async def test_rate_limit_without_backup_raises(self) -> None:
+        """无备用可切时原样上抛，不对同一死模型重复调用。"""
+        primary = SimpleNamespace(
+            config_id=1, provider="openai", model_name="gpt-4o", api_key="k"
+        )
+        agent = _FailingAgent(_rate_limit_error())
+        with (
+            patch(
+                "app.agent.skills.market_review_agent.resolve_task_llm",
+                AsyncMock(return_value=primary),
+            ),
+            patch(
+                "app.agent.skills.market_review_agent.build_langchain_model",
+                lambda _cfg: object(),
+            ),
+            patch("deepagents.create_deep_agent", return_value=agent),
+            patch(
+                "app.agent.skills.skill_failover.mark_unhealthy", new=AsyncMock()
+            ),
+            pytest.raises(openai.RateLimitError),
+        ):
+            await run_skill(
+                AsyncMock(), trade_date=_TRADE_DATE, prompt_config=_PROMPT_CONFIG
+            )
+
+        assert agent.calls == 1

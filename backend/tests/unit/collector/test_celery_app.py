@@ -130,6 +130,18 @@ class TestGlobalTimeLimitFallback:
 
 
 @pytest.mark.unit
+class TestBrokerVisibilityTimeout:
+    def test_visibility_timeout_exceeds_hard_time_limit(self) -> None:
+        """可见性超时长于全局硬限：acks_late 下超时长任务不会被 broker 重投。
+
+        kombu 默认 3600s 短于全局硬限 4800s，跑超 1h 的任务会被重新投递，
+        形成重复投递楔锁（2026-11-05 hk-kline 跑 3840s，heavy 队列积压 601 条）。
+        """
+        transport_options = app.conf.broker_transport_options or {}
+        assert transport_options["visibility_timeout"] > app.conf.task_time_limit
+
+
+@pytest.mark.unit
 class TestConfigureLogging:
     def test_binds_handler_to_startup_stdout_not_redirected_proxy(self) -> None:
         """celery 把 sys.stdout 换成 LoggingProxy 后，handler 仍须绑定真实 stdout。"""
