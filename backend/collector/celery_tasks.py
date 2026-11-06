@@ -24,7 +24,7 @@ from app.models.collector_dead_letter import CollectorDeadLetter
 from app.models.collector_log import CollectorLog
 from app.models.collector_task import CollectorTask
 from collector.celery_app import app, resolve_task_options
-from collector.core.base import CollectResult
+from collector.core.base import CollectResult, CollectStatus
 from collector.core.logging import configure_logging
 from collector.runtime.runner import run_task
 
@@ -43,6 +43,32 @@ _PROXY_TEST_PROBE_SECONDS = 8.0
 
 def _truncate(text: str) -> str:
     return text[:_ERROR_MSG_MAX_LEN]
+
+
+class CollectorTaskFailedError(Exception):
+    """采集全部渠道失败（``CollectResult.status=FAILED``）的失败信号。
+
+    采集器以返回值表达失败而非抛异常，此前 celery 把这类任务记为成功——
+    既不重试也不进死信，失败只在 collector_log 里留一行、无任何补救动作
+    （2026-11-06 事故盘点确认：失败任务静默消失）。
+    """
+
+
+def _failure_summary(result: CollectResult) -> str:
+    """把采集失败结果压成一行可写入日志/死信的摘要。"""
+    detail = "; ".join(result.errors) or result.message or "采集失败"
+    return _truncate(detail)
+
+
+def _retry_countdown(options: dict[str, Any], retries: int) -> int:
+    """按队列策略算重试倒计时：指数退避，封顶 ``retry_backoff_max``。
+
+    采集源被 WAF 封禁/网络黑洞这类故障在短时间内不会自愈，固定间隔重试
+    只是等量地重复失败；退避递增把重试挪到源可能恢复之后。
+    """
+    base = int(options["retry_backoff"])
+    cap = int(options["retry_backoff_max"])
+    return int(min(base * (2**retries), cap))
 
 
 class AsyncTask(Task):
@@ -179,12 +205,13 @@ def _handle_soft_timeout(
     if retries < options["max_retries"]:
         # 软超时可能是采集源瞬时不稳：按队列退避策略重试；重试期间不写
         # 终态日志（dispatcher 预建行由下次尝试复用并覆盖）。
+        countdown = _retry_countdown(options, retries)
         logger.warning(
             "collector_task_soft_timeout_retry",
             task=payload.get("task"),
             celery_task_id=task.request.id,
             retries=retries,
-            countdown=options["retry_backoff"],
+            countdown=countdown,
         )
         loop.run_until_complete(
             _update_task_schedule_state(
@@ -194,7 +221,7 @@ def _handle_soft_timeout(
             )
         )
         raise task.retry(
-            countdown=options["retry_backoff"],
+            countdown=countdown,
             max_retries=options["max_retries"],
             exc=exc,
         ) from exc
@@ -213,6 +240,40 @@ def _handle_soft_timeout(
             None,
             error=f"SoftTimeLimitExceeded after {retries} retries",
         )
+    )
+    raise exc
+
+
+def _handle_collect_failed(
+    task: LogAwareTask, payload: dict[str, Any], exc: CollectorTaskFailedError
+) -> NoReturn:
+    """采集失败统一出口：按队列退避策略重试，耗尽后落终态进死信。
+
+    与软超时同构：失败必须有补救动作，不能只在日志里留一行。
+    """
+    options = resolve_task_options(payload.get("task", ""))
+    retries = task.request.retries
+    if retries < options["max_retries"]:
+        countdown = _retry_countdown(options, retries)
+        logger.warning(
+            "collector_task_failed_retry",
+            task=payload.get("task"),
+            celery_task_id=task.request.id,
+            retries=retries,
+            countdown=countdown,
+            error=str(exc),
+        )
+        raise task.retry(
+            countdown=countdown,
+            max_retries=options["max_retries"],
+            exc=exc,
+        ) from exc
+    logger.error(
+        "collector_task_failed_exhausted",
+        task=payload.get("task"),
+        celery_task_id=task.request.id,
+        retries=retries,
+        error=str(exc),
     )
     raise exc
 
@@ -239,11 +300,18 @@ def run_collector_task(self: LogAwareTask, payload: dict[str, Any]) -> dict[str,
         try:
             result = await run_task(payload)
             await _update_task_schedule_state(payload, result, error=None)
+            if result.status == CollectStatus.FAILED:
+                # 采集器以返回值表达失败：转成异常交外层统一重试/死信，
+                # 否则 celery 记为成功，失败没有任何补救动作。
+                raise CollectorTaskFailedError(_failure_summary(result))
             return _result_to_dict(result)
         except SoftTimeLimitExceeded:
             # 处理统一挂在外层 _handle_soft_timeout：软限信号可能在事件循环
             # 空闲期（select）打断，异常从循环帧冒出，协程内的 try 接不住
             # （2026-09-23 本地栈实测：重试丢失，任务直接终态失败）。
+            raise
+        except CollectorTaskFailedError:
+            # 由外层 _handle_collect_failed 统一重试/死信
             raise
         except Exception as exc:
             # 延迟导入：避免 celery_tasks 顶层依赖 app.services 聚合包的导入序。
@@ -283,6 +351,8 @@ def run_collector_task(self: LogAwareTask, payload: dict[str, Any]) -> dict[str,
         return loop.run_until_complete(_execute())
     except SoftTimeLimitExceeded as exc:
         _handle_soft_timeout(self, payload, exc)
+    except CollectorTaskFailedError as exc:
+        _handle_collect_failed(self, payload, exc)
 
 
 @app.task(name="collector.celery_tasks.run_proxy_test")
