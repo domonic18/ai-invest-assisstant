@@ -2,7 +2,8 @@
 
 财报/研报摘要与截图识别等单轮任务的公共路径：解析默认 LLM 配置 →
 ``build_langchain_model`` → ``with_structured_output``。输出 schema 即契约
-（pydantic 模型），解析失败按方法兜底序换法重试一次；仍失败则上抛。
+（pydantic 模型），解析失败按方法兜底序换法重试一次；schema 校验失败时
+把校验错误回喂让模型改一次；仍失败则上抛。
 额度/限流类失败触发主备切换：主配置进冷却后重新解析（健康门切备用）
 当次重试一次。端点强制 adaptive thinking（MiniMax M3.1 起实测）时
 省略 thinking 参数自愈重试，且自愈后同样参与方法兜底；thinking 不可关
@@ -40,8 +41,19 @@ T = TypeVar("T", bound=BaseModel)
 _THINKING_REQUIRED_ENDPOINTS: set[tuple[int, str]] = set()
 
 # thinking 不可关的端点：thinking 与输出共享 max_tokens 预算，长思考可烧满
-# 助手循环的默认预算致空文本（MiniMax M3.1-Flash 实测），结构化调用给足余量
-STRUCTURED_THINKING_MAX_TOKENS = 32768
+# 助手循环的默认预算致空文本（MiniMax M3.1-Flash 实测），结构化调用给足余量。
+# 32768 实测仍会被 Minimax 的长思考烧满致「不吐 tool call」，故提到 65536。
+STRUCTURED_THINKING_MAX_TOKENS = 65536
+
+# 端点 → 实际生效的结构化输出法（进程内记忆）。anthropic 协议端点对两种
+# 方法的支持度不一致：kimi coding 忽略强制 tool_choice（function_calling
+# 拿不到 tool call），Minimax 强制 adaptive thinking 时 json_schema 烧满
+# 预算不吐 tool call（2026-11-06 生产实测）。按端点记住上次生效的方法，
+# 后续优先走它，避免每次都先撞一次失败法。
+_ENDPOINT_PREFERRED_METHOD: dict[tuple[int, str], str] = {}
+
+# 校验失败修复时回喂给模型的错误摘要长度上限
+_REPAIR_ERROR_MAX_CHARS = 2000
 
 
 def _is_thinking_required_error(exc: BaseException) -> bool:
@@ -57,6 +69,27 @@ def _image_block(data: bytes, media_type: str) -> dict[str, Any]:
         "type": "image_url",
         "image_url": {"url": f"data:{media_type};base64,{encoded}"},
     }
+
+
+def _repair_message(base: HumanMessage, exc: ValidationError) -> HumanMessage:
+    """构造修复提示：把 schema 校验错误回喂给模型。
+
+    Args:
+        base: 原始提示消息。
+        exc: 模型输出的校验错误。
+
+    Returns:
+        追加了错误摘要的新提示消息。
+    """
+    detail = str(exc)[:_REPAIR_ERROR_MAX_CHARS]
+    hint = (
+        "\n\n上一次输出未通过 schema 校验，请按下列错误修正后重新输出结构化结果：\n"
+        f"{detail}"
+    )
+    content = base.content
+    if isinstance(content, str):
+        return HumanMessage(content=content + hint)
+    return HumanMessage(content=[*content, {"type": "text", "text": hint}])
 
 
 async def run_structured(
@@ -92,7 +125,7 @@ async def run_structured(
             落观测（agent_run llm step、ai_analysis_result 补全等）。
 
     Raises:
-        ValidationError: 模型输出不符合 schema（重试一次后仍失败）。
+        ValidationError: 模型输出不符合 schema（回喂校验错误修复一次后仍失败）。
     """
     if config_id is None and task_key is not None:
         config_id = await resolve_task_config_id(session, task_key)
@@ -109,22 +142,30 @@ async def run_structured(
         ]
     message = HumanMessage(content=content)
 
-    def _output_methods(protocol: str) -> tuple[str, ...]:
-        """按协议给出结构化输出法（首选 + 兜底）。
+    def _output_methods(protocol: str, endpoint: tuple[int, str]) -> tuple[str, ...]:
+        """按协议与端点记忆给出结构化输出法（首选 + 兜底）。
 
-        anthropic 协议端点（kimi coding 等）2026-09-08 起对强制 tool_choice
-        间歇性忽略，function_calling 法会静默拿到 None，故 json_schema（原生
-        output_format）优先；但 MiniMax 等兼容端点不实现 output_format，会
-        忽略并返回纯文本（OutputParserException），tool calling 反而可靠
-        （批次 5 对话实测）——json_schema 失败后换 function_calling 兜底。
-        openai 协议一律 function_calling。
+        anthropic 协议端点对两种方法的支持度不一致：kimi coding 忽略强制
+        tool_choice（function_calling 静默拿不到 tool call），而 Minimax 等
+        强制 adaptive thinking 的端点在 json_schema 下会烧满输出预算不吐
+        tool call（2026-11-06 生产实测）——故默认 function_calling 优先，
+        并记住该端点实际生效的方法，后续优先走它。openai 协议一律
+        function_calling。
         """
-        if protocol == "anthropic":
-            return ("json_schema", "function_calling")
-        return ("function_calling",)
+        if protocol != "anthropic":
+            return ("function_calling",)
+        preferred = _ENDPOINT_PREFERRED_METHOD.get(endpoint)
+        if preferred:
+            others = tuple(m for m in ("json_schema", "function_calling") if m != preferred)
+            return (preferred, *others)
+        return ("function_calling", "json_schema")
 
     async def _invoke_method(
-        current: ResolvedLLMConfig, method: str, *, disable_thinking: bool
+        current: ResolvedLLMConfig,
+        method: str,
+        *,
+        disable_thinking: bool,
+        msg: HumanMessage,
     ) -> T:
         # thinking 与输出共享 max_tokens 预算：不可关 thinking 的端点须放大预算，
         # 否则长思考烧满默认值导致空文本（MiniMax M3.1-Flash 实测）
@@ -133,7 +174,7 @@ async def run_structured(
             current, disable_thinking=disable_thinking, max_tokens=max_tokens
         )
         structured = model.with_structured_output(result_type, method=method)
-        result = await structured.ainvoke([message])
+        result = await structured.ainvoke([msg])
         if result is None:
             # tool_choice 被端点忽略时静默拿 None（kimi/MiniMax 实测），
             # 转为解析失败以触发兜底法重试，而非把 None 当合法结果上抛
@@ -142,15 +183,17 @@ async def run_structured(
 
     async def _invoke(current: ResolvedLLMConfig) -> T:
         endpoint = (current.config_id, current.model_name)
-        methods = _output_methods(current.protocol)
+        methods = _output_methods(current.protocol, endpoint)
         # 首选法解析失败时按兜底序换法重试一次；无兜底法则同法重试
         fallback = methods[1] if len(methods) > 1 else methods[0]
 
-        async def _try_method(method: str) -> T:
+        async def _try_method(method: str, msg: HumanMessage) -> T:
             """单法调用；遇「强制 thinking」400 记住端点并省略参数自愈重试一次。"""
             disable_thinking = endpoint not in _THINKING_REQUIRED_ENDPOINTS
             try:
-                result = await _invoke_method(current, method, disable_thinking=disable_thinking)
+                result = await _invoke_method(
+                    current, method, disable_thinking=disable_thinking, msg=msg
+                )
             except Exception as exc:
                 if not (disable_thinking and _is_thinking_required_error(exc)):
                     raise
@@ -164,14 +207,26 @@ async def run_structured(
                     model_name=current.model_name,
                     method=method,
                 )
-                return await _try_method(method)
+                return await _try_method(method, msg)
             _meta["method"] = method
+            if current.protocol == "anthropic":
+                # 记住该端点实际生效的方法，下次优先走它
+                _ENDPOINT_PREFERRED_METHOD[endpoint] = method
             return result
 
         try:
-            return await _try_method(methods[0])
-        except (ValidationError, OutputParserException):
-            return await _try_method(fallback)
+            return await _try_method(methods[0], message)
+        except ValidationError as exc:
+            # 结构有但字段不合（缺必填字段/类型不符）：把校验错误回喂给模型改一次
+            return await _try_method(methods[0], _repair_message(message, exc))
+        except OutputParserException:
+            pass
+
+        # 首选法没拿到结构化结果：换兜底法
+        try:
+            return await _try_method(fallback, message)
+        except ValidationError as exc:
+            return await _try_method(fallback, _repair_message(message, exc))
 
     _meta: dict[str, str] = {}
     t0 = time.monotonic()
