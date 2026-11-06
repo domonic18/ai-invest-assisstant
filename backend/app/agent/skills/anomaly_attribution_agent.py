@@ -16,11 +16,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agent.core.prompt_loader import PromptConfig
 from app.agent.runtime.model_factory import build_langchain_model
+from app.agent.skills.skill_failover import run_with_llm_failover
 from app.agent.skills.skill_runtime import (
     invoke_structured,
     load_skill_instructions,
     load_skill_methodology,
 )
+from app.services.admin.llm_config_service import ResolvedLLMConfig
 from app.services.admin.llm_task_binding_service import resolve_task_llm
 from app.services.market.anomaly_attribution_service import (
     SECTOR_CATEGORIES,
@@ -84,9 +86,7 @@ async def run_skill(
     Raises:
         SkillOutputError: 重试一次后输出仍无法解析或不符合 schema。
     """
-    cfg = await resolve_task_llm(
-        session, "sector_anomaly" if domain == "sector" else "stock_anomaly"
-    )
+    task_key = "sector_anomaly" if domain == "sector" else "stock_anomaly"
     result_type = (
         SectorAnomalyAttributionContent
         if domain == "sector"
@@ -120,16 +120,6 @@ async def run_skill(
         else ",".join(sorted(STOCK_CATEGORIES))
     )
 
-    agent = create_deep_agent(
-        model=build_langchain_model(cfg),
-        tools=[tool_map[name] for name in _EVIDENCE_TOOLS[domain]],
-        system_prompt=(
-            f"{prompt_config.system_prompt.strip()}\n\n"
-            f"{load_skill_instructions(SKILL_ID)}\n\n{load_skill_methodology(SKILL_ID)}"
-        ),
-        name=SKILL_ID,
-    )
-
     user_prompt = prompt_config.user_prompt_template.format(
         trade_date=trade_date.isoformat(),
         domain_label="板块" if domain == "sector" else "个股",
@@ -139,15 +129,33 @@ async def run_skill(
         categories=allowed,
     )
 
-    started = time.perf_counter()
-    content = await invoke_structured(
-        agent,
-        user_prompt,
-        result_type,
-        skill_id=SKILL_ID,
-        domain=domain,
-        trade_date=trade_date.isoformat(),
+    async def _run(cfg: ResolvedLLMConfig) -> tuple[Any, int]:
+        agent = create_deep_agent(
+            model=build_langchain_model(cfg),
+            tools=[tool_map[name] for name in _EVIDENCE_TOOLS[domain]],
+            system_prompt=(
+                f"{prompt_config.system_prompt.strip()}\n\n"
+                f"{load_skill_instructions(SKILL_ID)}\n\n{load_skill_methodology(SKILL_ID)}"
+            ),
+            name=SKILL_ID,
+        )
+
+        started = time.perf_counter()
+        content = await invoke_structured(
+            agent,
+            user_prompt,
+            result_type,
+            skill_id=SKILL_ID,
+            domain=domain,
+            trade_date=trade_date.isoformat(),
+        )
+        latency_ms = int((time.perf_counter() - started) * 1000)
+        return content, latency_ms
+
+    (content, latency_ms), cfg = await run_with_llm_failover(
+        lambda: resolve_task_llm(session, task_key),
+        _run,
+        task_key=task_key,
     )
-    latency_ms = int((time.perf_counter() - started) * 1000)
     model_name = f"{cfg.provider}/{cfg.model_name}"
     return content, model_name, latency_ms

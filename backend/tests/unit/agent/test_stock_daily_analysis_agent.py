@@ -53,7 +53,11 @@ class _FakeAgent:
 
 def _patch_run_env(agent: _FakeAgent):
     cfg = SimpleNamespace(
-        provider="openai", model_name="gpt-4o", api_key="k", base_url=None
+        config_id=1,
+        provider="openai",
+        model_name="gpt-4o",
+        api_key="k",
+        base_url=None,
     )
     return (
         patch(
