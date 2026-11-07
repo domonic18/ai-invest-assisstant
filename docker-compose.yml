@@ -58,6 +58,13 @@ services:
         condition: service_healthy
     restart: unless-stopped
     logging: *logging
+    healthcheck:
+      # beat 无 worker 可 ping，只能探进程存活：entrypoint 以 exec 启动 celery beat，PID 1 即调度器
+      test: ["CMD", "python", "-c", "import sys; sys.exit(0 if b'beat' in open('/proc/1/cmdline','rb').read() else 1)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
     networks:
       - app-network
 
