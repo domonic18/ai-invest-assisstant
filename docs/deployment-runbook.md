@@ -51,15 +51,29 @@ bash scripts/deploy.sh --env staging --tag develop-<sha_short>
 ```bash
 # ① 先把新的部署脚本 / compose / 迁移送到服务器（CI 打包直传）
 #    传输内容：scripts/deploy.sh、docker/database/、docker/caddy/、docker-compose.prod.yml
-#    理由：生产机到 GitHub 的链路不稳（实测间歇性 TLS 中断），发布不能依赖它
+#    理由：生产机到 GitHub 的链路不通（实测 github.com 100% 超时），发布不能依赖它
 tar -czf /tmp/deploy-assets.tar.gz scripts/deploy.sh docker/database docker/caddy docker-compose.prod.yml
-scp /tmp/deploy-assets.tar.gz <host>:/tmp/ && ssh <host> 'cd /opt/investment && tar -xzf /tmp/deploy-assets.tar.gz'
+scp /tmp/deploy-assets.tar.gz <host>:/tmp/
+# 提取必须以 root 执行：服务器上部分目录（如 docker/caddy/）属主为 root，
+# 非 root 提取会因覆盖失败而中断发布（2026-11-07 首次发布即栽在这里）
+# --no-same-owner：不让归档里的 uid/gid 覆盖服务器属主
+ssh <host> sudo bash -s -- /opt/investment "$(git rev-parse HEAD)" <迁移文件数> <<'REMOTE'
+cd "$1"
+tar --no-same-owner -xzf /tmp/deploy-assets.tar.gz
+rm -f /tmp/deploy-assets.tar.gz
+chmod 755 scripts/deploy.sh
+printf '%s\n' "$2" > .deploy-commit
+REMOTE
 # ② 再执行部署
 sudo bash scripts/deploy.sh --env prod --tag main-<sha_short>
 ```
 
 传输的资产与 `git checkout` 到同一 commit 等价（同一个 `GITHUB_SHA`），
 本次发布的完整 sha 由 CI 写入服务器 `.deploy-commit`，供 `.deploy-state.commit` 记录。
+
+同步步骤带**资产落地完整性校验**：`deploy.sh`、compose、`caddy/Caddyfile`、
+`caddy/Dockerfile` 缺一即中止，迁移文件数与 CI 侧不一致也中止——
+不让半套资产带着进下一步。
 
 ## 4. deploy.sh 做了什么（按顺序）
 

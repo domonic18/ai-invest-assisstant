@@ -61,12 +61,16 @@ PR → backend + web + db-migration-guard + db-incremental-guard   （全绿才�
 - **镜像 tag 全链一致**：构建与部署两端都用 `git rev-parse --short=7 "$GITHUB_SHA"`
   算 tag（显式钉长度，不用自动缩写——自动长度随对象库大小漂移，构建机与生产机
   可能算出不同长度）。tag 形如 `main-1a2b3c4`，与 `deploy.sh` 的校验正则一致
-- **服务器 git 拉取**：**不走这条路**。实测生产机到 GitHub 的链路间歇性 TLS 中断
-  （`git ls-remote` / `git fetch` 三次里两次失败），放在发布关键路径上不可接受。
+- **服务器 git 拉取**：**不走这条路**。实测生产机到 `github.com` **100% 不可达**
+  （`git ls-remote` 8/8、`git fetch` 4/4 全部 60s 超时；裸 HTTPS `curl https://github.com/`
+  25s 超时，而 `codeload.github.com` 1.02s、`ccr.ccs.tencentyun.com` 0.09s——是 host 级不可达，
+  不是间歇性抖动），放在发布关键路径上等于每次发布都赌一次超时。
   改为 **CI 侧打包直传**：`scripts/deploy.sh` + `docker/database/` + `docker/caddy/` +
   `docker-compose.prod.yml` 经 SSH 送到服务器，与 `git checkout` 到同一 commit 等价；
   本次发布的完整 sha 由 CI 写入 `.deploy-commit`，`.deploy-state.commit` 从它取值，
-  部署脚本不再依赖服务器上存在 git 仓库
+  部署脚本不再依赖服务器上存在 git 仓库。
+  镜像链路（构建 → TCR → 生产 pull）**全程境内且稳定**（生产 pull 0.74s），
+  未作任何改动——直传只补源码/配置这条断掉的链路
 
 ## 6. 实施批次
 
@@ -120,3 +124,26 @@ PR → backend + web + db-migration-guard + db-incremental-guard   （全绿才�
    - **已核实**：文件存在（600），auths 含 `ccr.ccs.tencentyun.com`，与 compose 镜像前缀一致
 5. 直传机制已演练：`tar + scp + 解压` 在服务器 `/tmp` 沙箱验证，
    解压出的迁移集与线上现有迁移集 `diff` 完全一致，compose 文件一致，`deploy.sh` 语法通过
+
+## 10. 首次生产发布实录（2026-11-07）
+
+**第一次尝试（merge commit `189f906`）失败在「同步资产」步骤，部署步骤未执行，线上零影响。**
+
+现象：`tar: docker/caddy/Caddyfile: Cannot open: File exists` /
+`tar: docker/caddy/Dockerfile: Cannot open: Permission denied`。
+
+根因：远端 `tar -xzf` 以 `ubuntu` 身份执行，而服务器 `/opt/investment/docker/caddy/`
+是 **root 属主**（2026-10-16 手工发布时以 root 创建，此后未改属主）。
+非 root 无法覆盖 root 属主目录里的文件 → tar 报错退出。
+tar 会跳过错误继续解后面的条目，所以 `scripts/deploy.sh`、25 个迁移、compose 事实上已落地，
+但 `.deploy-commit` 因 `set -eu` 未写入——**同步是「半套」状态**。
+
+修法（三处）：
+1. 远端提取整体改走 `sudo bash -s`（发布本来就要 root 权限执行 deploy.sh）
+2. `tar --no-same-owner`：不让归档里的构建机 uid 覆盖服务器属主
+   （否则文件会挂上构建机的 uid 501，服务器上不存在该用户）
+3. 同步步骤加**资产落地完整性校验**：关键文件缺一即中止，迁移文件数与 CI 侧
+   不一致也中止——不让半套资产带着进下一步
+
+验证：修复方案在服务器实测通过（`--- 已同步：迁移 25 个，发布资产齐全 ---`）。
+失败后的线上状态已核对：`APP_TAG` 仍为 `main-67efbb7`，11 个容器全部 running。
