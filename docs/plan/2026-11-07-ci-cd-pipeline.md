@@ -203,3 +203,42 @@ tar 会跳过错误继续解后面的条目，所以 `scripts/deploy.sh`、25 �
   → 中止发布，**旧容器继续服务**，`APP_TAG` 已退回
 - 镜像内容验证：空库上从零应用 25 条 → 重放全跳过（幂等）
 - 无匿名卷泄漏（`docker volume ls` 计数前后都是 7），迁移容器 `--rm` 后无残留
+
+## 12. 路线 C 生产发布实录（2026-11-08）
+
+**第一次尝试（merge commit `24a8acc`）止于 CI 门禁，线上零影响。**
+main 流水线在 `Web / 前端` job 红，两次尝试两种原因（均与路线 C 无关，develop 与
+PR 流水线此前均通过）：
+
+1. `KnowledgePlayer.test.tsx > resumes from saved localStorage position` 偶发
+   `expected +0 to be 42`。起播点落点 `pendingSeekRef` 由 `streamUrl` effect 写入，
+   测试在 `video` 元素挂载后立刻派发 `loadedmetadata`——挂载不保证 effect 已执行，
+   慢 runner 上 effect 晚于该事件，续播未生效。改法：`renderPlayer` 统一等 `src`
+   属性落位（该属性只由该 effect 设置，等它即等价于等 effect 跑完）。
+2. 断言全过（568/568）却报 unhandled error `ReferenceError: window is not defined`，
+   栈在 react-dom 的 `prepareForCommit`。react-dom 每次 commit 直接读全局 `window`；
+   用例跑完、jsdom 环境销毁后队列里未 flush 的更新才执行 → window 已不存在 →
+   unhandled error → vitest 退出码非零 → job 红。改法：`setup.ts` 注册 `afterEach`，
+   环境销毁前用 `act` + 一个宏任务 tick 把 React scheduler 队列跑空。
+
+两处修复经 PR #165 进 develop、PR #166 进 main，均为**测试侧改动，无生产代码变更**。
+
+**第二次尝试（merge commit `c33c626`）发布成功，路线 C 首次在生产跑通。**
+
+- 闸门：`production` Environment 的 required reviewers 拦下 job，API 放行后才执行
+- 同步：`--- 已同步：迁移 25 个，发布资产齐全 ---`（root 提取 + 落地校验生效）
+- **迁移走独立镜像**：TCR 拉 `migrate:main-c33c626`（8.7s）→ `compose run --rm
+  --no-deps --pull never -T migrate` → `migrate done: applied=0, skipped(already
+  applied)=25`——**零 schema 变更**，宿主机无 psql 也能迁移
+- 发布：`部署成功：main-c33c626`，耗时约 2 分钟
+- 状态：`.deploy-state` = `current_tag=main-c33c626` / `previous_tag=main-18f6deb` /
+  `status=OK`；`.env` 的 `APP_TAG` 同值
+- 线上：11 个容器全部 running 且跑 `main-c33c626`；
+  `https://invest.17aitech.com/health` 返回 `{"status":"ok","warmup_done":true}`
+- 治理：每个仓库保留 3 个 tag（当前 + 2 个回滚目标，`main-18f6deb` 与 `main-67efbb7`
+  在手），磁盘剩余 30G，`.env.bak` 2 份
+
+**本轮暴露的工程问题（已修，记录备查）**：前端测试有两类独立偶发红，都会让整条
+main 流水线红掉、卡住发布。一类是**用例与 effect 的时序竞态**（组件已挂载但 effect
+未执行），一类是**环境销毁后残留提交**（断言全过但 vitest 退出码非零）。两者都不是
+「重跑就好」的问题——重跑只会掩盖它们。
