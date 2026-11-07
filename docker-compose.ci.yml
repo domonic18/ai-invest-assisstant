@@ -1,0 +1,55 @@
+# CI 测试环境覆盖（仅 deploy-staging 使用；开发环境不叠加此文件）
+#
+# 目的：让「本机作为测试环境」跑的是 CI 构建并推送到 TCR 的镜像，而不是本机现编的镜像，
+#      从而在合入 develop 后真正验证到将要发布的那份产物。
+#
+# 规则：
+#   - build: !reset null —— 去掉本地构建上下文，compose 绝不会在测试机编译
+#   - platform: linux/amd64 —— TCR 产物固定 amd64（CI 构建机），本机是 arm64
+#   - douyin-signer 在基础 compose 里没有 image:（开发时本地编译 chromium），
+#     此处补上，否则 --no-build 无镜像可用
+#
+# 注意：douyin-signer 的 chromium 在 arm64 上是原生运行，测试机拉 amd64 产物后
+#       走模拟执行，页面指纹与本机原生不同 —— 抖音签名侧车在测试环境可能退化，
+#       采集侧会自动回退本地 a_bogus（生产环境为原生 amd64，不受影响）。
+
+services:
+  web:
+    build: !reset null
+    platform: linux/amd64
+
+  celery-beat:
+    build: !reset null
+    platform: linux/amd64
+
+  celery-worker:
+    build: !reset null
+    platform: linux/amd64
+
+  celery-worker-heavy:
+    build: !reset null
+    platform: linux/amd64
+
+  collector-stream:
+    build: !reset null
+    platform: linux/amd64
+
+  agent-intraday-exec:
+    build: !reset null
+    platform: linux/amd64
+
+  douyin-signer:
+    image: ccr.ccs.tencentyun.com/domonic18/douyin-signer:${APP_TAG:-latest}
+    build: !reset null
+    platform: linux/amd64
+
+  paper-trade:
+    build: !reset null
+    platform: linux/amd64
+
+  minio:
+    # CI 测试环境不启动 minio：镜像在境内拉不到（docker hub 镜像源不可靠），
+    # 生产走 COS（服务器 .env 的 MINIO_ENDPOINT=cos.ap-beijing.myqcloud.com），
+    # 对象存储功能不在测试环境覆盖范围内。
+    # 需要本地 minio 时用基础 compose 启动（开发环境不叠加本文件）。
+    profiles: [ci-disabled]

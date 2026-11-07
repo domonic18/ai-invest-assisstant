@@ -17,6 +17,10 @@ venv/
 env/
 .env
 *.env.local
+.env.bak*
+.deploy-state
+.deploy-commit
+.deploy/
 
 # ====================
 # Node / Frontend
