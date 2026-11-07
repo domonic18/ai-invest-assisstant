@@ -77,7 +77,7 @@ PR → backend + web + db-migration-guard + db-incremental-guard   （全绿才�
 | 批次 | 内容 | 状态 |
 |---|---|---|
 | 1 · 本机测试链路 | `scripts/deploy.sh`（staging 模式）+ `docker-compose.ci.yml` + `deploy-staging` job + celery-beat healthcheck | ✅ 已落地并本地全流程演练通过 |
-| 2 · 生产链路 | Environment + required reviewers + `DEPLOY_SSH_KEY` / `DEPLOY_KNOWN_HOSTS` + 服务器侧 TCR 凭据 + `deploy-production` job | ✅ 工作流已落地，**待配置 secret 与 Environment 后首次手动触发** |
+| 2 · 生产链路 | Environment + required reviewers + `DEPLOY_SSH_KEY` / `DEPLOY_KNOWN_HOSTS` + 服务器侧 TCR 凭据 + `deploy-production` job | ✅ 全流程跑通，**2026-11-08 首次生产发布成功**（`main-18f6deb`，详见 §10） |
 | 3 · 门禁与治理 | `needs` 补齐 + `db-incremental-guard` + advisory lock + 幂等静态检查 + 三层清理策略 | ✅ 已落地 |
 | 4 · 文档 | runbook + README + `.env.example` + CLAUDE.md 发布纪律 | ✅ 已落地 |
 
@@ -147,3 +147,16 @@ tar 会跳过错误继续解后面的条目，所以 `scripts/deploy.sh`、25 �
 
 验证：修复方案在服务器实测通过（`--- 已同步：迁移 25 个，发布资产齐全 ---`）。
 失败后的线上状态已核对：`APP_TAG` 仍为 `main-67efbb7`，11 个容器全部 running。
+
+**第二次尝试（merge commit `18f6deb`）发布成功。**
+
+- 审批：`production` Environment 的 required reviewers（`domonic18`）拦下 job，
+  放行后才执行——闸门有效
+- 同步：`--- 已同步：迁移 25 个，发布资产齐全 ---`（root 提取 + 落地校验均生效）
+- 迁移：`migrate done: applied=0, skipped(already applied)=25` —— **零 schema 变更**
+- 发布：`部署成功：main-18f6deb`，耗时 2m15s（含审批后全程）
+- 状态：`.deploy-state` = `current_tag=main-18f6deb` / `previous_tag=main-67efbb7` / `status=OK`
+- 线上：11 个容器全部 running 且跑 `main-18f6deb`；`https://invest.17aitech.com/health`
+  返回 `{"status":"ok","warmup_done":true}`
+- 治理：每个仓库保留当前 + 1 个回滚目标（`main-67efbb7` 在手），悬空镜像 0，磁盘剩余 30G，
+  `.env.bak` 1 份
