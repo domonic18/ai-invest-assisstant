@@ -44,7 +44,8 @@ else
         -U "$PGUSER" -d "$PGDATABASE" -f - < "$1"; }
 fi
 
-STREAM_FILE="$(mktemp "${TMPDIR:-/tmp}/migrate-stream.XXXXXX.sql")"
+# 模板必须以 X 结尾：alpine（busybox）的 mktemp 不接受 X 之后还有后缀的形式
+STREAM_FILE="$(mktemp "${TMPDIR:-/tmp}/migrate-stream.XXXXXX")"
 LOG_FILE="$(mktemp "${TMPDIR:-/tmp}/migrate-log.XXXXXX")"
 cleanup() { rm -f "$STREAM_FILE" "$LOG_FILE"; }
 trap cleanup EXIT
