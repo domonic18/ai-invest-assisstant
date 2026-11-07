@@ -619,8 +619,10 @@ jobs:
             "cd '$DEPLOY_PATH' && echo '--- 当前状态文件 ---' && cat .deploy-state 2>/dev/null; echo '--- 当前 APP_TAG ---' && grep -E '^APP_TAG=' .env 2>/dev/null; echo '--- 当前运行镜像 ---' && sudo docker compose -f docker-compose.prod.yml ps --format '{{.Service}} {{.Image}} {{.State}}' 2>/dev/null"
 
       - name: Sync deploy assets / 同步部署脚本、compose 与迁移到服务器
-        # 服务器到 GitHub 的链路不稳（实测间歇性 TLS 中断），发布不能依赖它——
-        # 改为 CI 侧打包直传：只送发布必需的资产，与 git checkout 等价（同一 commit）
+        # 生产机到 GitHub 的链路实测 100% 超时，发布资产不能从服务器侧拉取——
+        # 改为 CI 侧打包直传：只送发布必需的资产，与 git checkout 等价（同一 commit）。
+        # 提取以 root 执行：服务器上部分目录（如 docker/caddy/）属主为 root，
+        # 非 root 提取会因覆盖失败而中断发布。
         run: |
           set -eu
           # COPYFILE_DISABLE：macOS 上打包不夹带 AppleDouble（._*）垃圾文件
@@ -629,18 +631,26 @@ jobs:
             docker/database \
             docker/caddy \
             docker-compose.prod.yml
+          migration_count="$(find docker/database/migrations -maxdepth 1 -name '*.sql' | wc -l | tr -d ' ')"
           scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes \
             /tmp/deploy-assets.tar.gz "$DEPLOY_HOST:/tmp/deploy-assets.tar.gz"
           ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes "$DEPLOY_HOST" \
-            bash -s -- "$DEPLOY_PATH" "$GITHUB_SHA" <<'REMOTE'
+            sudo bash -s -- "$DEPLOY_PATH" "$GITHUB_SHA" "$migration_count" <<'REMOTE'
           set -eu
           cd "$1"
-          tar -xzf /tmp/deploy-assets.tar.gz
+          # --no-same-owner：不让归档里的 uid/gid 覆盖服务器属主，
+          # 否则文件会挂上构建机 uid（服务器上不存在该用户）
+          tar --no-same-owner -xzf /tmp/deploy-assets.tar.gz
           rm -f /tmp/deploy-assets.tar.gz
           chmod 755 scripts/deploy.sh
           printf '%s\n' "$2" > .deploy-commit
-          echo '--- 已同步 ---'
-          ls docker/database/migrations | wc -l
+          # 资产落地完整性校验：缺任何一项都中止，不带着半套资产继续发布
+          for f in scripts/deploy.sh docker-compose.prod.yml docker/caddy/Caddyfile docker/caddy/Dockerfile; do
+              [ -f "$f" ] || { echo "ERROR: 资产缺失：$f" >&2; exit 1; }
+          done
+          n="$(find docker/database/migrations -maxdepth 1 -name '*.sql' | wc -l | tr -d ' ')"
+          [ "$n" = "$3" ] || { echo "ERROR: 迁移文件数不符：期望 $3，实际 $n" >&2; exit 1; }
+          echo "--- 已同步：迁移 $n 个，发布资产齐全 ---"
           REMOTE
 
       - name: Deploy / 发布（迁移先行 → 换容器 → 健康检查 → 失败自动回滚）
