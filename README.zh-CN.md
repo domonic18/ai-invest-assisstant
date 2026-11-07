@@ -121,18 +121,21 @@ docker compose up -d paper-trade douyin-signer
 
 打开 http://localhost:5173 并注册首个用户（通过数据库 `role` 字段或后台管理提升为 admin）。
 
-### 生产部署
+### 发布部署
 
-生产环境使用服务器上的单一 compose 文件（只拉镜像，不构建）：
+发布逻辑唯一入口是 `scripts/deploy.sh`，CI 与人工都只调它：
 
 ```bash
-docker compose -f docker-compose.prod.yml pull
-docker compose -f docker-compose.prod.yml up -d postgres --wait
-bash docker/database/migrate.sh     # 需 COMPOSE_FILE=docker-compose.prod.yml
-docker compose -f docker-compose.prod.yml up -d --wait --remove-orphans --no-build
+bash scripts/deploy.sh --env <staging|prod> --tag <branch>-<sha>
 ```
 
-镜像由 GitHub Actions 构建并推送至 TCR；生产 `.env` 中以 `APP_TAG=develop-<sha>` 固定版本。
+- **本机测试环境**（合并 develop）：CI 构建推 TCR → 自动同步部署资产到本机项目目录 →
+  自动迁移 + 换容器 + 健康检查
+- **生产环境**（合并 main）：CI 构建推 TCR → GitHub Environment `production` 人工审批 →
+  经 SSH 调用生产机上的同一份脚本，迁移先行、失败自动回滚
+
+镜像 tag 为 `<branch>-<sha_short>`（不可变），版本固定在 `.env` 的 `APP_TAG`。
+完整的发布 / 回滚 / 排障流程见 [`docs/deployment-runbook.md`](docs/deployment-runbook.md)。
 
 ### 常用命令
 
