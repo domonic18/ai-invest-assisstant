@@ -70,6 +70,12 @@ jobs:
           dockerfile: docker/paper-trade/Dockerfile
           failure-threshold: error
 
+      - name: Dockerfile Lint / Dockerfile 检查（migrate）
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: docker/migrate/Dockerfile
+          failure-threshold: error
+
       - name: Install uv / 安装 uv
         uses: astral-sh/setup-uv@v7
         with:
@@ -208,6 +214,29 @@ jobs:
           out="$(bash docker/database/migrate.sh)"
           echo "$out"
           grep -q "applied=0" <<<"$out" || { echo "ERROR: 重放产生了新 applied，迁移不幂等" >&2; exit 1; }
+
+      # 迁移镜像（路线 C）是线上真正执行迁移的载体，必须与脚本路径等价：
+      # 同一批迁移文件，从零能全量应用、重放全跳过，才说明镜像里的内容是对的。
+      - name: Build migrate image / 构建迁移镜像
+        run: docker build -f docker/migrate/Dockerfile -t migrate-guard:test .
+
+      - name: Migrate via image / 用迁移镜像从零迁移并断言幂等
+        run: |
+          set -eu
+          expected="$(find docker/database/migrations -maxdepth 1 -name '*.sql' | wc -l | tr -d ' ')"
+          psql -d postgres -c "CREATE DATABASE image_check"
+          out="$(docker run --rm --network host \
+            -e PGHOST=127.0.0.1 -e PGPORT=5432 -e PGUSER=postgres -e PGPASSWORD=postgres \
+            -e PGDATABASE=image_check migrate-guard:test)"
+          echo "$out"
+          grep -q "applied=${expected}," <<<"$out" \
+            || { echo "ERROR: 迁移镜像未应用全部迁移（期望 ${expected} 条）" >&2; exit 1; }
+          out="$(docker run --rm --network host \
+            -e PGHOST=127.0.0.1 -e PGPORT=5432 -e PGUSER=postgres -e PGPASSWORD=postgres \
+            -e PGDATABASE=image_check migrate-guard:test)"
+          echo "$out"
+          grep -q "applied=0," <<<"$out" \
+            || { echo "ERROR: 迁移镜像重放产生了新 applied，镜像内迁移不幂等" >&2; exit 1; }
 
   # ============================================================
   # Stage 2.6: 数据库增量迁移守卫——从「线上 schema」出发验证增量路径，
@@ -530,6 +559,61 @@ jobs:
           docker push "$IMAGE:$VERSION_TAG"
 
   # ============================================================
+  # Stage 3.5: 迁移镜像构建推送（路线 C）
+  # 迁移文件与 migrate.sh 打进镜像：线上执行的迁移与本次发布的代码同 commit，
+  # 发布时不再向服务器同步迁移文件，宿主机也不需要 psql。
+  # ============================================================
+  docker-migrate:
+    name: Docker Migrate / 迁移镜像构建推送
+    runs-on: [self-hosted]
+    needs: [db-migration-guard, db-incremental-guard]
+    if: (github.event_name == 'push' && (github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main')) || github.event_name == 'workflow_dispatch'
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout / 检出代码
+        uses: actions/checkout@v6
+
+      - name: Select builder / 选择构建器
+        run: docker buildx use ci-builder
+
+      - name: Login to TCR / 登录腾讯云容器镜像服务
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.TCR_USERNAME }}
+          password: ${{ secrets.TCR_PASSWORD }}
+
+      - name: Resolve tags / 解析标签
+        id: vars
+        run: |
+          {
+            echo "sha_short=$(git rev-parse --short=7 "$GITHUB_SHA")"
+            echo "branch=$(echo "${GITHUB_REF#refs/heads/}" | tr '/' '-')"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Build image / 本地构建镜像
+        uses: docker/build-push-action@v7
+        timeout-minutes: 15
+        with:
+          context: .
+          file: docker/migrate/Dockerfile
+          push: false
+          load: true
+          provenance: false
+          platforms: linux/amd64
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.NAMESPACE }}/migrate:${{ steps.vars.outputs.branch }}-${{ steps.vars.outputs.sha_short }}
+      - name: Push to TCR / 推送镜像
+        timeout-minutes: 15
+        env:
+          IMAGE: ${{ env.REGISTRY }}/${{ env.NAMESPACE }}/migrate
+          VERSION_TAG: ${{ steps.vars.outputs.branch }}-${{ steps.vars.outputs.sha_short }}
+        run: |
+          set -eu
+          docker push "$IMAGE:$VERSION_TAG"
+
+  # ============================================================
   # Stage 6: 本机测试环境自动更新（合并 develop 即生效）
   # 目标机 = 本机项目目录：compose 与 .env 常驻此处，应用代码全在 TCR 镜像里，
   # 故只需把部署脚本、compose 文件与迁移文件同步过去再调 deploy.sh。
@@ -537,7 +621,7 @@ jobs:
   deploy-staging:
     name: Deploy Staging / 本机测试环境更新
     runs-on: [self-hosted]
-    needs: [docker-web, docker-collector, docker-signer, docker-paper-trade]
+    needs: [docker-web, docker-collector, docker-signer, docker-paper-trade, docker-migrate]
     if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
     timeout-minutes: 30
     concurrency:
@@ -586,7 +670,7 @@ jobs:
   deploy-production:
     name: Deploy Production / 生产环境发布
     runs-on: ubuntu-latest
-    needs: [docker-web, docker-collector, docker-signer, docker-paper-trade]
+    needs: [docker-web, docker-collector, docker-signer, docker-paper-trade, docker-migrate]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     environment: production
     timeout-minutes: 60

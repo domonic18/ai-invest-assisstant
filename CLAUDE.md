@@ -94,7 +94,7 @@ AI Invest Assistant 遵循前后端分离的现代 Web 应用架构。完整的�
 ### 数据库迁移规范
 
 - **schema 单一真相源是 `docker/database/migrations/`**：`0001_baseline.sql`（全量基线，幂等）→ `0002_seed.sql`（幂等种子）→ 按日期命名的增量迁移（如 `20261001_xxx.sql`）；`legacy/` 为历史归档，永不执行。**不设 init-scripts 双写**（目录已删除，postgres 不再挂 `docker-entrypoint-initdb.d`）——新变更只加一个迁移文件，新环境重放全部迁移得到相同 schema
-- **执行走 `bash docker/database/migrate.sh`**（台账表 `schema_migrations` exactly-once，每迁移与登记同事务提交；宿主机无 psql 自动经 `docker compose exec postgres` 执行）。纯手动脚本、无自动迁移钩子：起库健康后、起应用前必须执行一次，漏跑应用会因缺表报错
+- **线上执行迁移走独立 migrate 镜像**（`docker/migrate/Dockerfile`）：迁移文件与 `migrate.sh` 打进镜像，随 `<branch>-<sha>` tag 发布——线上执行的迁移与本次发布的代码必然同 commit，宿主机不需要 psql、也不依赖外部同步过来的迁移文件。开发时仍可 `bash docker/database/migrate.sh`（台账表 `schema_migrations` exactly-once，每迁移与登记同事务提交；宿主机无 psql 自动经 `docker compose exec postgres` 执行）。纯手动脚本、无自动迁移钩子：起库健康后、起应用前必须执行一次，漏跑应用会因缺表报错
 - **迁移 forward-only**：文件合并后禁止修改（CI 从零重放守卫兜底）；破坏性变更走 expand-contract，先加后删分两批
 - 新迁移必须幂等（`IF NOT EXISTS` / `ON CONFLICT DO NOTHING`），禁止依赖其在本文件之前不存在的历史状态；CI 有静态检查拦截（`scripts/check_migration_idempotency.py`）
 
@@ -102,6 +102,7 @@ AI Invest Assistant 遵循前后端分离的现代 Web 应用架构。完整的�
 
 - **部署逻辑只有一份**：`scripts/deploy.sh --env <staging|prod> --tag <branch>-<sha>`。CI 与人工都只调它，禁止在 CI 里内联长命令、禁止手写 `docker compose up` 发布
 - **迁移先行**：迁移失败即中止，旧版本继续服务（零影响）；迁移 forward-only，回滚镜像不回滚 schema——DDL 走 expand-contract，新旧代码需并存至少一个发布周期
+- **迁移镜像与应用镜像同 tag**：迁移内容随镜像版本化，发布时同步到服务器的 `docker/database/` 只是留一份同 commit 副本供排查，不是执行路径
 - **镜像 tag 不可变**：`<branch>-<sha_short>`，不推 `latest`（latest 会被回滚目标顶掉，是回滚可靠性的前提）。`.env` 的 `APP_TAG` 由脚本自动写入，`.env.bak*` 最多留 3 份
 - **失败自动回滚**：换容器或健康检查失败 → 自动回退到 `previous_tag` 并保留现场（日志不删）；回滚状态见 `.deploy-state`
 - **生产机不接受 CI 内联命令**：发布只经 SSH 调用 `scripts/deploy.sh`（CI 从 main 打包直传的同一份脚本，经 Environment 审批后才发出）；生产机到 GitHub 链路不稳，发布资产一律由 CI 直传，不依赖服务器 git fetch。TCR 凭据只存服务器侧，CI 不向生产机传 registry 密码

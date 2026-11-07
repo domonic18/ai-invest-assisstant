@@ -299,6 +299,27 @@ services:
     networks:
       - app-network
 
+  migrate:
+    # 独立迁移镜像（路线 C）：迁移文件与 migrate.sh 打进镜像，随 APP_TAG 版本化。
+    # 宿主机不再需要 psql / 迁移文件——迁移内容由镜像唯一决定，与应用代码同 commit。
+    # profiles=migrate：compose up 不会启动它，只在 deploy.sh 里 run 一次即走。
+    image: ccr.ccs.tencentyun.com/domonic18/migrate:${APP_TAG:-latest}
+    build:
+      context: .
+      dockerfile: docker/migrate/Dockerfile
+    profiles: [migrate]
+    environment:
+      PGHOST: postgres
+      PGPORT: "5432"
+      PGUSER: ${POSTGRES_USER}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGDATABASE: ${POSTGRES_DB}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - app-network
+
   redis:
     image: redis:7-alpine
     ports:
