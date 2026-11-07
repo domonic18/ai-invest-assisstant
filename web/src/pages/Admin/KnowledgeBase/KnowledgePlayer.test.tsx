@@ -44,6 +44,9 @@ async function renderPlayer(
     expect(el).not.toBeNull()
     return el as HTMLMediaElement
   })) as HTMLMediaElement
+  // 等 src 装载 effect 跑完：起播点/断点续播的落点（pendingSeekRef）由该 effect 写入，
+  // 早于它派发 loadedmetadata 会读不到待应用值（慢 runner 上偶发 currentTime=0）
+  await waitFor(() => expect(video.getAttribute('src')).toBe(STREAM_SRC))
   // jsdom 媒体不实现播放，duration 恒 NaN；显式给定以驱动 seek/进度逻辑
   Object.defineProperty(video, 'duration', { value: 120, configurable: true })
   return { ...utils, video }
@@ -73,8 +76,6 @@ describe('KnowledgePlayer', () => {
     const { video } = await renderPlayer()
 
     expect(mockedToken).toHaveBeenCalledWith(3)
-    // src 由 streamUrl effect 异步赋值，等待落位（慢 runner 上 video 挂载先于 effect）
-    await waitFor(() => expect(video.getAttribute('src')).toBe(STREAM_SRC))
     expect(video.getAttribute('controlsList')).toContain('nodownload')
     expect(video.hasAttribute('disablepictureinpicture')).toBe(true)
     // 防盗角标：用户名 + 日期
