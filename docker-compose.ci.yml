@@ -47,6 +47,10 @@ services:
     build: !reset null
     platform: linux/amd64
 
+  migrate:
+    build: !reset null
+    platform: linux/amd64
+
   minio:
     # CI 测试环境不启动 minio：镜像在境内拉不到（docker hub 镜像源不可靠），
     # 生产走 COS（服务器 .env 的 MINIO_ENDPOINT=cos.ap-beijing.myqcloud.com），

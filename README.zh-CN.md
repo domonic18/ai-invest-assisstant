@@ -134,6 +134,9 @@ bash scripts/deploy.sh --env <staging|prod> --tag <branch>-<sha>
 - **生产环境**（合并 main）：CI 构建推 TCR → GitHub Environment `production` 人工审批 →
   经 SSH 调用生产机上的同一份脚本，迁移先行、失败自动回滚
 
+迁移由独立的 `migrate` 镜像执行（迁移文件打进镜像，与应用镜像同 tag），
+线上执行的迁移与本次发布的代码必然同 commit。
+
 镜像 tag 为 `<branch>-<sha_short>`（不可变），版本固定在 `.env` 的 `APP_TAG`。
 完整的发布 / 回滚 / 排障流程见 [`docs/deployment-runbook.md`](docs/deployment-runbook.md)。
 
@@ -164,7 +167,7 @@ ai-invest-assisstant/
 ├── web/                        # React Web 端（src/ + Playwright e2e/）
 ├── shared/                     # 前后端共享契约（独立 npm 包：endpoints + types）
 ├── skills/                     # Skill 分发单元（SKILL.md + prompt.yaml 自包含目录）
-├── docker/                     # 镜像（web/collector/signer/paper-trade）+ 数据库迁移
+├── docker/                     # 镜像（web/collector/signer/paper-trade/migrate）+ 数据库迁移
 ├── docs/                       # arch（架构设计）/ plan / requirement / prototypes
 ├── qa/                         # 黑盒集成 QA（独立 uv 项目）
 └── docker-compose.yml          # 全栈编排（本地/生产共用基础）

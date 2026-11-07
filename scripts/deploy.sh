@@ -6,12 +6,14 @@
 #   bash scripts/deploy.sh --env staging --tag develop-<sha>
 #   sudo bash scripts/deploy.sh --env prod --tag main-<sha>
 #
-# 流程：参数校验 → 预检 → .env 备份轮转 + 钉 APP_TAG → 数据库迁移（先行）→
+# 流程：参数校验 → 预检 → .env 备份轮转 + 钉 APP_TAG → 拉镜像 → 数据库迁移（先行）→
 #       换容器 → 健康检查 → 落 .deploy-state → 失败自动回滚 → 镜像/备份清理
 #
 # 设计约束（详见 docs/deployment-runbook.md）：
 #   - 部署逻辑只有这一份，可评审、可回溯；CI 不内联长命令
 #   - 迁移先行：迁移失败则旧版本继续服务，零影响
+#   - 迁移由独立 migrate 镜像执行（路线 C）：迁移文件打进镜像，与应用代码同 commit；
+#     宿主机不装 psql、不再从外部同步迁移文件
 #   - 失败自动回滚到上一个 tag，回滚保留现场（日志不删）
 #   - 镜像按仓库分组保留最新 N 个（当前 + N-1 个回滚目标）；
 #     只清悬空层，绝不用 docker image prune -a（会删掉回滚目标）
@@ -158,7 +160,10 @@ preflight() {
         [ -f "$compose_file" ] || fail "缺少 compose 文件：$compose_file"
     done
     [ -f .env ] || fail "缺少 .env（部署前须先准备）"
-    [ -f docker/database/migrate.sh ] || fail "缺少 docker/database/migrate.sh"
+    # 迁移走独立 migrate 镜像：compose 必须定义该服务，否则无从执行迁移
+    # grep 不带 -q：-q 命中即退出会让上游吃 SIGPIPE，pipefail 下误判为失败
+    compose --profile migrate config --services 2>/dev/null | grep -x migrate >/dev/null \
+        || fail "compose 未定义 migrate 服务（迁移镜像路线要求独立的 migrate 服务）"
 
     # 磁盘余量：Docker Desktop 的 DockerRootDir 在虚拟机内（宿主机无此路径），
     # 此时改看工程目录所在卷（workspace/ 数据与镜像都在这一侧增长）
@@ -182,14 +187,13 @@ preflight() {
 # ---------------------------------------------------------------- 迁移
 
 run_migrations() {
-    PGDATABASE="$(env_get POSTGRES_DB invest)"
-    PGUSER="$(env_get POSTGRES_USER postgres)"
-    PGPASSWORD="$(env_get POSTGRES_PASSWORD '')"
-    PGHOST=127.0.0.1
-    PGPORT="$(env_get POSTGRES_PORT 5432)"
-    export PGDATABASE PGUSER PGPASSWORD PGHOST PGPORT
-    log "执行数据库迁移（先行，失败即中止，旧版本继续服务）"
-    bash docker/database/migrate.sh
+    # 迁移走独立 migrate 镜像（路线 C）：镜像内的迁移文件与本次发布的代码同 commit，
+    # 宿主机不再需要 psql，也不再依赖外部同步过来的迁移文件。
+    # --no-deps：postgres 已在跑（预检已确认健康），不让 compose 再动它
+    # --pull never：镜像已在 pull_migrate_image 阶段拉好，现场绝不联网拉取
+    # -T：非交互（CI / SSH）下不分配 TTY
+    log "执行数据库迁移（独立 migrate 镜像，先行，失败即中止，旧版本继续服务）"
+    compose run --rm --no-deps --pull never -T migrate
 }
 
 # ---------------------------------------------------------------- 健康检查
@@ -273,10 +277,13 @@ rollback_to() {
 # ---------------------------------------------------------------- 镜像拉取与清理
 
 # 镜像仓库前缀（如 ccr.ccs.tencentyun.com/domonic18）从 compose 推导，
-# 避免脚本里再写一份镜像地址
+# 避免脚本里再写一份镜像地址。
+# 注意：config --images 的输出顺序是散列序，不能取第一行——第一行可能是
+#       timescale/timescaledb 这类三方镜像，推出来的前缀就错了。
+#       只认「registry/namespace/repo」三段式，本项目自有镜像才符合。
 image_prefix() {
-    docker compose "${COMPOSE_F[@]}" config --images 2>/dev/null \
-        | head -n 1 | sed -E 's|/[^/]+:[^/:]+$||'
+    { docker compose "${COMPOSE_F[@]}" config --images 2>/dev/null \
+        | grep -E '^[^/]+/[^/]+/[^/]+:' | sed -n '1p' | sed -E 's|/[^/]+:[^/:]+$||' || true; }
 }
 
 # 服务名 → 镜像仓库名（celery-* 与 collector-stream 共用 collector 镜像）
@@ -306,12 +313,28 @@ pull_images() {
     return 0
 }
 
+pull_migrate_image() {
+    # 迁移镜像必须先到位：迁移由它执行，拉不到就没法迁移。
+    # 单独于 pull_images：回滚不跑迁移，不该被 migrate 镜像的拉取结果拖累。
+    local prefix
+    if compose pull migrate; then
+        return 0
+    fi
+    prefix="$(image_prefix)"
+    if [ -n "$prefix" ] && docker image inspect "$prefix/migrate:$IMAGE_TAG" >/dev/null 2>&1; then
+        warn "migrate 镜像拉取失败，本地已有 $prefix/migrate:${IMAGE_TAG}，继续"
+        return 0
+    fi
+    warn "迁移镜像拉取失败且本地无对应镜像"
+    return 1
+}
+
 cleanup_images() {
     local current_tag="$1" protect_tag="$2" prefix repos repo tags keep_tag i
     prefix="$(image_prefix)"
     [ -n "$prefix" ] || { warn "无法推导镜像仓库前缀，跳过镜像清理"; return 0; }
-    repos="$(docker compose "${COMPOSE_F[@]}" config --images 2>/dev/null \
-        | sed -E 's|.*/||; s|:.*||' | sort -u)"
+    # 仓库清单来自服务名（config --images 不含 profile 下的服务，会漏掉 migrate）
+    repos="$({ for svc in $APP_SERVICES; do service_repo "$svc"; done; echo migrate; } | sort -u)"
 
     keep_tag="$current_tag"
     for repo in $repos; do
@@ -335,13 +358,13 @@ cleanup_images() {
 }
 
 prune_backups() {
-    # .env.bak 已由 rotate_env_backup 限死 3 份，这里兜底清理历史遗留
-    #（head -n -N 在 BSD head 上不支持，改用计数 + 正数行数）
+    #（head -n -N 在 BSD head 上不支持，改用计数 + sed 取前 N 行；
+    #  不用 head：head 提前退出会让上游吃 SIGPIPE，pipefail 下误判为失败）
     local files count
     files="$(ls -1 .env.bak* 2>/dev/null | sort || true)"
     count="$(printf '%s' "$files" | grep -c . || true)"
     if [ "${count:-0}" -gt 3 ]; then
-        printf '%s\n' "$files" | head -n $((count - 3)) | while read -r f; do
+        printf '%s\n' "$files" | sed -n "1,$((count - 3))p" | while read -r f; do
             rm -f "$f"
         done
     fi
@@ -375,16 +398,21 @@ main() {
     restore_owner "$owner"
     log "APP_TAG 钉为 ${IMAGE_TAG}（上一个版本：${previous:-无}）"
 
-    # 迁移 / 拉镜像阶段失败时还没换容器，必须把 APP_TAG 退回上一个版本——
+    # 拉镜像 / 迁移阶段失败时还没换容器，必须把 APP_TAG 退回上一个版本——
     # 否则 .env 会指向一个从未跑起来的 tag，下一次部署的回滚目标就错了
-    if ! run_migrations; then
-        restore_prev_tag "$previous" "$owner"
-        fail "数据库迁移失败：已中止发布，旧版本继续服务（未换容器）"
-    fi
-
     if ! pull_images; then
         restore_prev_tag "$previous" "$owner"
         fail "镜像拉取失败：$IMAGE_TAG"
+    fi
+
+    if ! pull_migrate_image; then
+        restore_prev_tag "$previous" "$owner"
+        fail "迁移镜像拉取失败：$IMAGE_TAG"
+    fi
+
+    if ! run_migrations; then
+        restore_prev_tag "$previous" "$owner"
+        fail "数据库迁移失败：已中止发布，旧版本继续服务（未换容器）"
     fi
 
     if ! compose up -d --wait ${UP_ARGS[@]+"${UP_ARGS[@]}"} --no-build --pull never; then

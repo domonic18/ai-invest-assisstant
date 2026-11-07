@@ -318,6 +318,24 @@ services:
     networks:
       - app-network
 
+  migrate:
+    # 独立迁移镜像（路线 C）：迁移文件打进镜像，发布时不再向服务器同步迁移文件，
+    # 线上执行的迁移与本次发布的代码同 commit。profiles=migrate 保证 compose up 不启动它，
+    # 只由 deploy.sh 以 `compose run --rm --no-deps migrate` 触发一次。
+    image: ccr.ccs.tencentyun.com/domonic18/migrate:${APP_TAG:-latest}
+    profiles: [migrate]
+    environment:
+      PGHOST: postgres
+      PGPORT: "5432"
+      PGUSER: ${POSTGRES_USER}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGDATABASE: ${POSTGRES_DB}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - app-network
+
   redis:
     image: redis:7-alpine
     # 发布到宿主机供 SCF 经轻量公网 IP 直连；公网可达必须密码认证：

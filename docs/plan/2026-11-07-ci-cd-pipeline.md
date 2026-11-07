@@ -160,3 +160,46 @@ tar 会跳过错误继续解后面的条目，所以 `scripts/deploy.sh`、25 �
   返回 `{"status":"ok","warmup_done":true}`
 - 治理：每个仓库保留当前 + 1 个回滚目标（`main-67efbb7` 在手），悬空镜像 0，磁盘剩余 30G，
   `.env.bak` 1 份
+
+## 11. 路线 C：迁移改由独立镜像执行（2026-11-08）
+
+**为什么改**：原先发布时把 `docker/database/` 同步到服务器、由宿主机跑
+`bash docker/database/migrate.sh`。这条链路有两个结构性缺陷：
+迁移内容与发布代码是两份独立传输的产物，**可能不对齐**（服务器上那份可能不是本次发布的）；
+宿主机执行迁移要求生产机有 psql 或可执行 compose 的 psql 兜底路径。
+
+**改法**：迁移文件与 `migrate.sh` 打进**独立 migrate 镜像**，与应用镜像同 tag
+（`<branch>-<sha7>`）发布。`deploy.sh` 用
+`docker compose run --rm --no-deps --pull never -T migrate` 触发一次迁移，
+宿主机不再需要 psql，迁移内容由镜像唯一决定。
+
+**新增资产**：`docker/migrate/Dockerfile`（基础镜像 `postgres:16-alpine`，只为拿 psql 客户端）。
+
+**关键决策**：
+
+| 决策 | 选择 | 理由 |
+|---|---|---|
+| migrate 服务是否常驻 | `profiles: [migrate]`，`compose up` 不启动 | 迁移是一次性动作，不该占常驻资源；compose 会自动为目标服务启用 profile |
+| 迁移镜像是否进 `APP_SERVICES` | **不进**，单独 `pull_migrate_image` | 回滚不跑迁移；若回滚目标没有 migrate 镜像（如路线 C 上线前的老版本），把它塞进通用拉取会让**回滚被迁移镜像的缺失拖垮** |
+| 服务器上是否还同步 `docker/database/` | **仍然同步** | 防止宿主机留一份陈旧迁移文件——人工误跑它会静默漏掉新迁移。同步 + 文件数校验保证它与本次发布同 commit |
+| 镜像仓库前缀推导 | 改为只认「registry/namespace/repo」三段式 | `docker compose config --images` 是**散列序**，取第一行可能拿到 `timescale/timescaledb`，推出的前缀就错了（此前是运气好） |
+
+**顺带修掉的两个真 bug**：
+
+1. **`migrate.sh` 在 alpine 下必失败**：`mktemp` 模板 `xxx.XXXXXX.sql` —— busybox 的
+   mktemp 要求 X 在末尾，GNU/macOS 允许后缀。脚本此前只在宿主机跑过，从未在容器里跑过。
+   改为 `migrate-stream.XXXXXX`（无后缀）。
+2. **`grep -q` + `pipefail` 的 SIGPIPE 陷阱**：`grep -q` 命中即退出会让上游管道写端吃
+   SIGPIPE，`set -o pipefail` 下整条管道返回 141，被误判成失败。`deploy.sh` 里
+   `compose config --services | grep -qx migrate` 因此稳定失败。改用不带 `-q` 的
+   `grep -x ... >/dev/null`（读完整个输入），`head -n` 同样换成 `sed -n`。
+
+**本机演练结果**（staging 全流程）：
+
+- 正常发布：拉镜像（401 时回退本地同 tag 镜像）→ 迁移镜像跑出 `applied=0, skipped=25`
+  → 换容器 → 10 个容器全 healthy → `.deploy-state` status=OK
+- 迁移镜像缺失：中止并报「迁移镜像拉取失败」，**未换容器**，`APP_TAG` 已退回
+- 迁移内容出错（塞一条坏迁移进镜像）：psql 报错 → 事务回滚（坏表未建、台账未污染）
+  → 中止发布，**旧容器继续服务**，`APP_TAG` 已退回
+- 镜像内容验证：空库上从零应用 25 条 → 重放全跳过（幂等）
+- 无匿名卷泄漏（`docker volume ls` 计数前后都是 7），迁移容器 `--rm` 后无残留
