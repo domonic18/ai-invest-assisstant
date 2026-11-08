@@ -115,20 +115,54 @@ jobs:
 
       # continue-on-error：首推失败不染红 job，成败由后面的裁定步骤说了算
       # （重试条件须用 outcome 而非 failure()，continue-on-error 会把 failure() 归 false）
+      # 步骤上限 35 分钟 = 3 次尝试 × 10 分钟 + 重试间隔，留出余量：
+      # 上限只覆盖整轮循环时，单次推送挂死会把预算吃光、重试根本没机会执行
+      # （实测跨境推 TCR 会卡在 pushing layers 二十多分钟无进展）
       - name: Push to TCR / 推送镜像
         id: push
         continue-on-error: true
-        timeout-minutes: 15
+        timeout-minutes: 35
         env:
           IMAGE: ${{ env.REGISTRY }}/${{ env.NAMESPACE }}/${{ inputs.image }}
           VERSION_TAG: ${{ steps.vars.outputs.branch }}-${{ steps.vars.outputs.sha_short }}
           PUSH_ATTEMPTS: 3
+          # 单次推送的看门狗上限（秒）。超过即判定本次挂死，杀掉后重试。
+          PUSH_DEADLINE_S: 600
         run: |
           set -euo pipefail
+
+          # 单次推送 + 看门狗。
+          # docker push 走跨境链路，卡住时不会自己返回，也不认超时参数。
+          # runner 是 macOS（BSD userland），没有 GNU coreutils 的 timeout，
+          # 故用「后台进程 + 轮询 ps 状态」实现，不引入额外依赖。
+          push_once() {
+            local image="$1" limit_s="$2" pid waited=0 stat
+            docker push "$image" &
+            pid=$!
+            while :; do
+              # 空 = 进程已不存在；Z = 僵尸（已退出待回收）——都算已结束
+              stat="$(ps -o stat= -p "$pid" 2>/dev/null || true)"
+              case "$stat" in
+                ""|Z*) break ;;
+              esac
+              if [ "$waited" -ge "$limit_s" ]; then
+                echo "[push] 单次推送超过 ${limit_s}s 仍无进展，终止本次尝试" >&2
+                kill -TERM "$pid" 2>/dev/null || true
+                sleep 2
+                kill -KILL "$pid" 2>/dev/null || true
+                wait "$pid" 2>/dev/null || true
+                return 124
+              fi
+              sleep 5
+              waited=$((waited + 5))
+            done
+            wait "$pid"
+          }
+
           attempt=1
           while [ "$attempt" -le "$PUSH_ATTEMPTS" ]; do
             echo "[push] 第 $attempt/$PUSH_ATTEMPTS 次：$IMAGE:$VERSION_TAG"
-            if docker push "$IMAGE:$VERSION_TAG"; then
+            if push_once "$IMAGE:$VERSION_TAG" "$PUSH_DEADLINE_S"; then
               exit 0
             fi
             echo "[push] 第 $attempt 次失败" >&2

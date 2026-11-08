@@ -411,7 +411,10 @@ jobs:
     with:
       image: migrate
       dockerfile: docker/migrate/Dockerfile
-      job-timeout: 30
+      # job 上限必须容得下 build(15) + push(35) + 收尾：给 60。
+      # 迁移镜像小、推送本该很快，但推送步骤自带看门狗与三次重试，
+      # 上限给小了会在重试之前就把 job 掐掉。
+      job-timeout: 60
       build-timeout: 15
     secrets:
       TCR_USERNAME: ${{ secrets.TCR_USERNAME }}
