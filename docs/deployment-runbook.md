@@ -89,7 +89,11 @@ sudo bash scripts/deploy.sh --env prod --tag main-<sha_short>
 1. **参数校验**：prod 只放行 `^main-[0-9a-f]{7,40}$`，staging 只放行 `^develop-[0-9a-f]{7,40}$`；
    非法 tag 直接退出（防注入、防误传 `latest`）
 2. **预检**：docker / compose v2 可用、compose 文件与 `.env` 存在、磁盘余量 ≥ 5G、
-   postgres 容器健康、compose 定义了 `migrate` 服务
+   postgres 容器健康、compose 定义了 `migrate` 服务。
+   **staging 例外**：测试环境整栈未运行（有意停用）时，预检判定「无任何容器在跑」
+   → 记 SKIP 横幅并以 0 退出，不拉镜像、不迁移、不换容器、不改 `.env`；
+   CI 另行打 `::warning::` 标注，避免绿灯被读成「已部署」。
+   栈还在但 postgres 单独掉了 → 仍硬失败（真故障不豁免）；prod 一律无此豁免。
 3. **备份轮转**：`.env` → `.env.bak` → `.env.bak.1` → `.env.bak.2`（最多 3 份），并把 `APP_TAG` 钉到本次 tag
 4. **拉镜像**：应用镜像 + 迁移镜像（`migrate`）。拉取失败但本地已有同 tag 镜像时继续走
    （回滚场景下仓库可能不可达）

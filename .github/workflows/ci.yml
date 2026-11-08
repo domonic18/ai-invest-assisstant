@@ -666,7 +666,22 @@ jobs:
           echo "已同步部署资产到 $root"
 
       - name: Deploy / 部署（迁移先行 → 换容器 → 健康检查）
+        id: deploy
         run: bash "$DEPLOY_ROOT/scripts/deploy.sh" --env staging --tag "develop-${{ steps.vars.outputs.sha_short }}"
+
+      # 测试环境整栈停用时 deploy.sh 会跳过并以 0 退出。这里把「跳过」显式标出来，
+      # 避免绿灯被读成「已部署」。
+      - name: Deploy result / 部署结果（跳过时显式标注）
+        if: steps.deploy.outputs.skipped == 'true'
+        run: |
+          echo "::warning::本机测试环境整栈未运行，deploy-staging 已跳过：未部署任何内容。"
+          {
+            echo "### ⚠ deploy-staging 已跳过"
+            echo ""
+            echo "- 原因：本机测试环境整栈未运行（compose 栈已按决策停用）"
+            echo "- 本次未部署任何内容：未拉镜像、未执行迁移、未换容器"
+            echo "- 后续：如需验证 develop 的部署效果，先在本机拉起 compose 栈再重跑 develop 流水线"
+          } >> "$GITHUB_STEP_SUMMARY"
 
   # ============================================================
   # Stage 7: 生产环境发布（Environment 人工审批后方可执行）
