@@ -5,9 +5,15 @@
 # 用法：
 #   bash scripts/deploy.sh --env staging --tag develop-<sha>
 #   sudo bash scripts/deploy.sh --env prod --tag main-<sha>
+#   bash scripts/deploy.sh --env staging --gc-only
 #
 # 流程：参数校验 → 预检 → .env 备份轮转 + 钉 APP_TAG → 拉镜像 → 数据库迁移（先行）→
 #       换容器 → 健康检查 → 落 .deploy-state → 失败自动回滚 → 镜像/备份清理
+#
+# --gc-only：只做镜像回收，不部署。给 CI 一个「与部署成败无关」的清理入口——
+#       清理原先只挂在部署成功路径末尾，整栈停用（staging）或部署失败时都不跑，
+#       构建机上 CI 加载的镜像便只增不减（2026-11-08 实测：五个仓库各积 7~8 个
+#       sha tag，其中 45 小时前的老 tag 一个没删）。
 #
 # 设计约束（详见 docs/deployment-runbook.md）：
 #   - 部署逻辑只有这一份，可评审、可回溯；CI 不内联长命令
@@ -17,6 +23,8 @@
 #   - 失败自动回滚到上一个 tag，回滚保留现场（日志不删）
 #   - 镜像按仓库分组保留最新 N 个（当前 + N-1 个回滚目标）；
 #     只清悬空层，绝不用 docker image prune -a（会删掉回滚目标）
+#   - 镜像清理由退出兜底保证：无论成功、失败还是跳过都跑一次。原先只挂在成功路径
+#     末尾，「磁盘余量不足 → 预检失败 → 不清理 → 磁盘永远不足」是个闭环
 #   - staging 环境整栈未运行（有意停用）时跳过本次部署并以 0 退出，CI 另行标注；
 #     prod 无此豁免：环境异常一律硬失败
 #
@@ -29,6 +37,7 @@ cd "$REPO_ROOT"
 
 ENV_NAME=""
 IMAGE_TAG=""
+GC_ONLY=false
 KEEP_IMAGES="${DEPLOY_KEEP_IMAGES:-3}"
 DISK_MIN_FREE_GB="${DEPLOY_DISK_MIN_FREE_GB:-5}"
 HEALTH_TIMEOUT="${DEPLOY_HEALTH_TIMEOUT:-300}"
@@ -36,6 +45,13 @@ STATE_FILE="$REPO_ROOT/.deploy-state"
 COMMIT_FILE="$REPO_ROOT/.deploy-commit"
 LOG_DIR="$REPO_ROOT/.deploy"
 ENV_OWNER=""
+# 镜像清理的豁免版本列表（当前运行版本 + 回滚目标）：退出兜底的清理要用，
+# 部署中途中断时按它们豁免删除
+PROTECT_TAGS=""
+CLEANUP_DONE=0
+# 退出兜底是否可用：豁免版本名单算出来之前不装 trap（否则清理会误删回滚目标）
+TRAP_READY=0
+REGISTRY="${DEPLOY_REGISTRY:-ccr.ccs.tencentyun.com}"
 # 只拉应用镜像：postgres / redis / minio 等基础镜像在境内/离线环境拉不动，
 # 且服务器上已有本地副本，pull 它们只会拖慢发布甚至失败
 APP_SERVICES="web douyin-signer paper-trade celery-beat celery-worker celery-worker-heavy collector-stream agent-intraday-exec"
@@ -50,7 +66,7 @@ skip_deploy() {
     log "=============================================================="
     log "SKIP：本次部署已跳过"
     log "原因：${reason}"
-    log "本次未做任何变更：未拉镜像、未执行迁移、未换容器、未改 .env"
+    log "本次未做部署变更：未拉镜像、未执行迁移、未换容器、未改 .env（镜像回收仍会执行）"
     log "如需真正部署，请先拉起该环境的 compose 栈，再重跑本流水线"
     log "=============================================================="
     # 在 CI 里把「跳过」透出给后续步骤（步骤输出可被 job 的其它 step 引用）
@@ -63,10 +79,12 @@ skip_deploy() {
 usage() {
     cat <<'EOF'
 用法: bash scripts/deploy.sh --env <staging|prod> --tag <image-tag>
+      bash scripts/deploy.sh --env <staging|prod> --gc-only
 
   --env   staging = 本机测试环境（docker-compose.yml + docker-compose.ci.yml）
           prod    = 生产环境（docker-compose.prod.yml）
   --tag   staging 期望 develop-<sha>；prod 期望 main-<sha>（短 sha 或完整 sha）
+  --gc-only  只做镜像回收，不部署（不带 --tag）。给 CI 一个与部署成败无关的清理入口
 EOF
 }
 
@@ -77,12 +95,14 @@ parse_args() {
         case "$1" in
             --env) ENV_NAME="${2:-}"; shift 2 ;;
             --tag) IMAGE_TAG="${2:-}"; shift 2 ;;
+            --gc-only) GC_ONLY=true; shift ;;
             -h|--help) usage; exit 0 ;;
             *) fail "未知参数：$1（-h 看用法）" ;;
         esac
     done
     [ -n "$ENV_NAME" ] || { usage >&2; fail "缺少 --env"; }
-    [ -n "$IMAGE_TAG" ] || { usage >&2; fail "缺少 --tag"; }
+    # --gc-only 只回收镜像不部署，不需要 tag
+    [ "$GC_ONLY" = true ] || [ -n "$IMAGE_TAG" ] || { usage >&2; fail "缺少 --tag"; }
 }
 
 validate() {
@@ -92,8 +112,11 @@ validate() {
         *) fail "--env 只能是 prod 或 staging，收到：$ENV_NAME" ;;
     esac
     # tag 同时是镜像引用的一部分，只放行白名单正则，杜绝注入与误传 latest
-    echo "$IMAGE_TAG" | grep -Eq "$TAG_RE" \
-        || fail "非法镜像 tag：${IMAGE_TAG}（${ENV_NAME} 要求匹配 ${TAG_RE}）"
+    # --gc-only 不部署、不引用镜像，无需校验 tag
+    if [ "$GC_ONLY" != true ]; then
+        echo "$IMAGE_TAG" | grep -Eq "$TAG_RE" \
+            || fail "非法镜像 tag：${IMAGE_TAG}（${ENV_NAME} 要求匹配 ${TAG_RE}）"
+    fi
 
     if [ "$ENV_NAME" = "prod" ]; then
         COMPOSE_PATHS=(docker-compose.prod.yml)
@@ -212,8 +235,29 @@ preflight() {
         || fail "postgres 未就绪：$pg_health"
 }
 
-# ---------------------------------------------------------------- 迁移
+# --gc-only 的预检：只要求能算镜像坐标与能读 .env，不碰容器
+preflight_gc() {
+    command -v docker >/dev/null 2>&1 || fail "docker 不存在"
+    docker compose version >/dev/null 2>&1 || fail "docker compose v2 不可用（需 compose plugin）"
+    docker info >/dev/null 2>&1 || fail "无权访问 docker daemon（生产机请用 sudo 执行本脚本）"
 
+    # compose 文件只用于「推导命名空间」的可选比对，缺失不阻断：
+    # CI 显式传 DEPLOY_NAMESPACE 时镜像坐标不依赖 compose，清理照样能跑
+    # （构建机上 compose 未必常驻——它由 deploy-staging 同步，main 推送时那个 job 不跑）
+    local compose_file
+    for compose_file in "${COMPOSE_PATHS[@]}"; do
+        [ -f "$compose_file" ] || warn "缺少 compose 文件：${compose_file}（镜像坐标改由显式命名空间决定）"
+    done
+    # .env 与 .deploy-state 至少要有一个：豁免名单（当前运行版本 + 回滚目标）靠它们，
+    # 两个都没有就无从保护正在跑的镜像，此时宁可不清理
+    if [ ! -f .env ] && [ ! -f "$STATE_FILE" ]; then
+        fail "缺少 .env 与 .deploy-state（无从判定当前运行版本，清理会失去豁免保护）"
+    fi
+    [ -f .env ] || warn "缺少 .env（当前运行版本改从 $STATE_FILE 判定）"
+    log "GC 预检通过：compose=$COMPOSE_FILE"
+}
+
+# ---------------------------------------------------------------- 迁移
 run_migrations() {
     # 迁移走独立 migrate 镜像（路线 C）：镜像内的迁移文件与本次发布的代码同 commit，
     # 宿主机不再需要 psql，也不再依赖外部同步过来的迁移文件。
@@ -255,6 +299,22 @@ wait_healthy() {
 read_state_field() {
     [ -f "$STATE_FILE" ] || return 0
     grep -E "^$1=" "$STATE_FILE" | tail -n 1 | cut -d= -f2- || true
+}
+
+# 当前正在运行的版本：.env 的 APP_TAG → .env.bak 的 → 状态文件的 current_tag。
+# 状态文件里 current_tag 才是「正在跑的版本」——previous_tag 是上一次发布前的版本，
+# 退过去等于连跳两级
+current_running_tag() {
+    local tag
+    tag="$(env_get APP_TAG '')"
+    [ -n "$tag" ] || tag="$(grep -E '^APP_TAG=' .env.bak 2>/dev/null | tail -n 1 | cut -d= -f2- || true)"
+    [ -n "$tag" ] || tag="$(read_state_field current_tag)"
+    printf '%s' "$tag"
+}
+
+# 清理豁免名单：当前运行版本 + 回滚目标（状态文件里的上一个版本）
+protect_tags() {
+    printf '%s' "$(current_running_tag) $(read_state_field previous_tag)"
 }
 
 resolve_commit() {
@@ -304,14 +364,40 @@ rollback_to() {
 
 # ---------------------------------------------------------------- 镜像拉取与清理
 
-# 镜像仓库前缀（如 ccr.ccs.tencentyun.com/domonic18）从 compose 推导，
-# 避免脚本里再写一份镜像地址。
-# 注意：config --images 的输出顺序是散列序，不能取第一行——第一行可能是
-#       timescale/timescaledb 这类三方镜像，推出来的前缀就错了。
-#       只认「registry/namespace/repo」三段式，本项目自有镜像才符合。
+# 镜像仓库前缀（registry/namespace），如 ccr.ccs.tencentyun.com/domonic18。
+# docker images 的过滤参数按**完整仓库名**匹配，只给短前缀匹配不到、且静默返回空——
+# 过滤落空会让清理整段空转，故前缀必须是 registry/namespace 两段完整值。
+# compose 推导：config --images 的输出顺序是散列序不能取第一行，但只认
+#       「registry/namespace/repo」三段式后，三方镜像（timescale/timescaledb、
+#       redis、minio）都不符合，剩下的是本项目自有镜像。
 image_prefix() {
-    { docker compose "${COMPOSE_F[@]}" config --images 2>/dev/null \
+    # 优先用显式传入的命名空间（CI 侧由 secret 注入）：compose 推导依赖
+    # config --images 的输出顺序（散列序），compose 文件一改就可能推错。
+    if [ -n "${DEPLOY_NAMESPACE:-}" ]; then
+        local declared composed
+        declared="$REGISTRY/$DEPLOY_NAMESPACE"
+        composed="$(compose_image_prefix)"
+        if [ -n "$composed" ] && [ "$composed" != "$declared" ]; then
+            warn "镜像命名空间不一致：显式 $declared 与 compose 推导 $composed 不符，以显式值为准"
+        fi
+        printf '%s' "$declared"
+        return 0
+    fi
+    compose_image_prefix
+}
+
+compose_image_prefix() {
+    { compose config --images 2>/dev/null \
         | grep -E '^[^/]+/[^/]+/[^/]+:' | sed -n '1p' | sed -E 's|/[^/]+:[^/:]+$||' || true; }
+}
+
+# 判断某个词是否在以空白分隔的列表里
+in_list() {
+    local needle="$1" list="$2" item
+    for item in $list; do
+        [ "$item" = "$needle" ] && return 0
+    done
+    return 1
 }
 
 # 服务名 → 镜像仓库名（celery-* 与 collector-stream 共用 collector 镜像）
@@ -357,32 +443,82 @@ pull_migrate_image() {
     return 1
 }
 
+# 清理对象：compose 里实际配置的自有镜像仓库 ∪ 服务名映射出来的仓库。
+# compose 是权威来源（新增服务改了 compose 立刻可见），服务名映射是补充
+# （migrate 在 profile 里，config --images 不含它）。
+cleanup_repo_list() {
+    local prefix="$1" compose_repos mapped_repos repo extra=""
+    [ -n "$prefix" ] || return 0
+    # 每段管道都收 || true：pipefail 下 grep 未命中返回 1，会让整个脚本直接退出——
+    # 恰恰发生在「过滤落空」这个最该报警、而不是该崩掉的场景
+    compose_repos="$(compose --profile migrate config --images 2>/dev/null \
+        | grep -F "$prefix/" | awk -F/ '{print $3}' | cut -d: -f1 | sort -u | tr '\n' ' ' || true)"
+    mapped_repos="$({ for svc in $APP_SERVICES; do service_repo "$svc"; done; echo migrate; } | sort -u | tr '\n' ' ')"
+    # compose 里有、映射表里没有 → 映射表漏改，报警而非静默放过
+    for repo in $compose_repos; do
+        in_list "$repo" "$mapped_repos" || extra="$extra $repo"
+    done
+    [ -n "$extra" ] && warn "compose 里的自有镜像仓库未被清理清单覆盖：${extra}（service_repo 映射漏改？）"
+    printf '%s\n' "$compose_repos $mapped_repos" | tr ' ' '\n' | grep -v '^$' | sort -u | tr '\n' ' ' || true
+}
+
+# 只回收镜像，不部署。给 CI 一个与部署成败无关的清理入口：
+# 构建机（Mac mini）上 CI 把镜像 load 进本地 docker，部署脚本在那台机上只管
+# 部署，不管清理——清理只挂在部署成功路径末尾时，镜像只增不减。
+gc_images() {
+    local protect
+    protect="$(protect_tags)"
+    log "镜像回收：豁免版本 ${protect:-（无）}"
+    cleanup_images "$protect"
+    CLEANUP_DONE=1
+}
+
+# cleanup_images <豁免版本列表>
+# 列表里的 tag 永不删除（当前运行版本 + 回滚目标）；其余按仓库保留最新 N 个。
 cleanup_images() {
-    local current_tag="$1" protect_tag="$2" prefix repos repo tags keep_tag i
+    local protect="$1" prefix repos repo tags i
+    local removed=0 freed=0 size missing="" listing latest=""
     prefix="$(image_prefix)"
     [ -n "$prefix" ] || { warn "无法推导镜像仓库前缀，跳过镜像清理"; return 0; }
-    # 仓库清单来自服务名（config --images 不含 profile 下的服务，会漏掉 migrate）
-    repos="$({ for svc in $APP_SERVICES; do service_repo "$svc"; done; echo migrate; } | sort -u)"
+    repos="$(cleanup_repo_list "$prefix")"
 
-    keep_tag="$current_tag"
     for repo in $repos; do
-        tags="$(docker images --format '{{.Tag}}\t{{.CreatedAt}}' "$prefix/$repo" 2>/dev/null \
-            | awk -F'\t' '$1 ~ /^(main|develop)-[0-9a-f]{7,40}$/' \
-            | sort -k2 -r | cut -f1)"
-        [ -n "$tags" ] || continue
+        # 一次 docker images 拿全：既要判「本地有没有这个仓库」，也要排 sha 版本 tag。
+        # 区分两种空：一条都没有 = 过滤落空（路径写错）；有镜像但无 sha tag = 正常跳过
+        listing="$(docker images --format '{{.Repository}}\t{{.Tag}}\t{{.CreatedAt}}' "$prefix/$repo" 2>/dev/null || true)"
+        if [ -z "$listing" ]; then
+            missing="$missing $prefix/$repo"
+            continue
+        fi
+        # latest 是项目明令禁推的可变标签（会被回滚目标顶掉），它既不匹配 sha 版本
+        # 规则、也就不计入保留额度与清理范围——只报不改，删不删由人定
+        if printf '%s\n' "$listing" | awk -F'\t' '$2 == "latest" {found=1} END {exit found?0:1}'; then
+            latest="$latest $prefix/$repo:latest"
+        fi
+        tags="$(printf '%s\n' "$listing" \
+            | awk -F'\t' '$2 ~ /^(main|develop)-[0-9a-f]{7,40}$/' \
+            | sort -k3 -r | cut -f2)"
+        [ -n "$tags" ] || { log "  ${repo}：本地无 sha 版本镜像，跳过"; continue; }
         i=0
         for t in $tags; do
             i=$((i + 1))
-            # 当前版本与上一个版本（回滚目标）永不删除
-            if [ "$i" -gt "$KEEP_IMAGES" ] && [ "$t" != "$keep_tag" ] && [ "$t" != "$protect_tag" ]; then
-                docker image rm "$prefix/$repo:$t" >/dev/null 2>&1 \
-                    || warn "镜像删除失败（可能被容器引用）：$prefix/$repo:$t"
+            if [ "$i" -gt "$KEEP_IMAGES" ] && ! in_list "$t" "$protect"; then
+                size="$(docker image inspect --format '{{.Size}}' "$prefix/$repo:$t" 2>/dev/null || echo 0)"
+                if docker image rm "$prefix/$repo:$t" >/dev/null 2>&1; then
+                    removed=$((removed + 1))
+                    freed=$((freed + size))
+                else
+                    warn "镜像删除失败（可能被容器引用）：$prefix/$repo:$t"
+                fi
             fi
         done
     done
+    # 一个仓库都没有 → 过滤落空：多半是仓库路径不对，旧镜像不会被清理，必须报警
+    [ -n "$missing" ] && warn "镜像清理过滤未命中（本地无这些仓库的镜像，仓库路径可能写错）：$missing"
+    [ -n "$latest" ] && warn "发现 latest 标签镜像（项目禁用 latest 推送，未自动清理）：$latest"
     # 只清悬空层：docker image prune -a 会连回滚目标一起删掉
     docker image prune -f >/dev/null 2>&1 || true
-    log "镜像清理完成（每仓库保留最新 $KEEP_IMAGES 个）"
+    log "镜像清理完成：删除 $removed 个镜像，镜像体积合计约 $((freed / 1024 / 1024)) MB（每仓库保留最新 $KEEP_IMAGES 个）"
 }
 
 prune_backups() {
@@ -403,20 +539,53 @@ prune_backups() {
     fi
 }
 
+# ---------------------------------------------------------------- 退出兜底
+
+# 镜像清理由退出兜底保证：无论成功、失败还是跳过都跑一次。
+# 原先清理只挂在成功路径末尾——staging 整栈停用（skip_deploy 直接 exit 0）
+# 或部署失败（fail 直接 exit 1）都不跑，构建机上 CI 加载的镜像只增不减：
+# 「磁盘余量不足 → 预检失败 → 不清理 → 磁盘永远不足」是个闭环。
+on_exit() {
+    local rc=$?
+    trap - EXIT
+    if [ "$CLEANUP_DONE" -eq 1 ] || [ "$TRAP_READY" -eq 0 ]; then
+        exit $rc
+    fi
+    cleanup_images "$PROTECT_TAGS" || true
+    exit $rc
+}
+
 # ---------------------------------------------------------------- 主流程
 
 main() {
     parse_args "$@"
     validate
-    preflight
+
+    if [ "$GC_ONLY" = true ]; then
+        # 只回收镜像：不部署、不碰 .env、不碰容器。
+        # 给 CI 一个与部署成败无关的清理入口（构建机上 CI 加载的镜像堆积）。
+        preflight_gc
+        gc_images
+        return 0
+    fi
 
     local owner previous commit prev_commit
+    # 豁免名单先算出来：退出兜底要靠它保护「当前运行版本」与「回滚目标」。
+    # 必须在 preflight 之前——staging 整栈停用时 skip_deploy 在 preflight 里
+    # 直接 exit 0，那正是清理最该跑到的路径。
+    # 上一个版本 = 当前正在运行的版本（回滚要退到它）
+    previous="$(current_running_tag)"
+    # 豁免 = 当前运行版本 + 回滚目标 + 本次发布的新版本
+    # 新版本从一开始就进豁免：它已经被拉下来，删了这次发布就白拉；
+    # 换容器成功或失败都不影响它免于清理
+    PROTECT_TAGS="$(protect_tags) $IMAGE_TAG"
+    TRAP_READY=1
+    trap on_exit EXIT
+
+    preflight
+
     owner="$(stat_owner .env)"
     ENV_OWNER="$owner"
-    # 上一个版本 = 当前 .env 里的 APP_TAG（改之前）；空则退到 .env.bak / 状态文件
-    previous="$(env_get APP_TAG '')"
-    [ -n "$previous" ] || previous="$(grep -E '^APP_TAG=' .env.bak 2>/dev/null | tail -n 1 | cut -d= -f2- || true)"
-    [ -n "$previous" ] || previous="$(read_state_field previous_tag)"
     # 上一个版本的 commit = 旧状态文件里的 commit（本次发布覆盖前先取出来）
     prev_commit="$(read_state_field commit)"
     commit="$(resolve_commit "$IMAGE_TAG")"
@@ -450,6 +619,8 @@ main() {
         fail "部署失败，已尝试回滚"
     fi
 
+    # 换容器已成功：新版本正在跑（它从一开始就进了豁免名单，这里不再重复追加）
+
     if ! wait_healthy "$HEALTH_TIMEOUT"; then
         warn "健康检查未通过"
         write_state FAILED "$IMAGE_TAG" "$previous" "$commit"
@@ -460,7 +631,8 @@ main() {
     write_state OK "$IMAGE_TAG" "$previous" "$commit"
     log "部署成功：${IMAGE_TAG}（commit ${commit}）"
 
-    cleanup_images "$IMAGE_TAG" "$previous"
+    cleanup_images "$PROTECT_TAGS" || true
+    CLEANUP_DONE=1
     prune_backups
     log "完成"
 }

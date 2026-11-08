@@ -1,0 +1,176 @@
+name: release-image
+
+# 每镜像一 job 的可复用构建推送流水线。
+# 此前五个镜像的 job 近乎逐字复制,各自记着同一批踩坑注释（builder 选择、
+# provenance:false、构建与推送分离的理由），改一处漏两处的风险实在——收敛成
+# 这一个文件后，语义只有一份。调用方（ci.yml）用 needs: 挂检查线的闸门。
+#
+# 与 aitech-hub 的 release-image.yml 的差异（有意保留，不是疏漏）：
+#   构建与推送分离：build 只 load 进本地 docker（push:false + load:true），
+#   推送由独立的 docker push 步骤做。buildx 本地缓存保留在构建机上，构建失败
+#   可秒级重跑；推送走简单两连推。aitech-hub 是 build+push 一步到位。
+on:
+  workflow_call:
+    # 显式声明所需 secret，不用 secrets: inherit：
+    # inherit 会把仓库里全部 secret（含部署用的 DEPLOY_SSH_KEY / DEPLOY_KNOWN_HOSTS）
+    # 一并交给镜像构建路径，构建链路的信任面比发布链路小得多
+    secrets:
+      TCR_USERNAME:
+        required: true
+      TCR_PASSWORD:
+        required: true
+      TCR_NAMESPACE:
+        required: true
+    inputs:
+      image:
+        description: 镜像仓库名（TCR 命名空间下，如 web）
+        required: true
+        type: string
+      dockerfile:
+        description: Dockerfile 路径（相对仓库根）
+        required: true
+        type: string
+      build-context:
+        description: 构建上下文目录（相对仓库根）
+        required: false
+        default: "."
+        type: string
+      build-args:
+        description: 传给 docker build 的额外构建参数（每行一个）
+        required: false
+        default: ""
+        type: string
+      app-version:
+        description: 是否注入 VITE_APP_VERSION（取 VERSION 文件 + 运行号，仅前端镜像需要）
+        required: false
+        default: false
+        type: boolean
+      job-timeout:
+        description: 整个 job 的超时分钟数
+        required: false
+        default: 90
+        type: number
+      build-timeout:
+        description: 构建步骤的超时分钟数
+        required: false
+        default: 20
+        type: number
+
+jobs:
+  build-push:
+    name: 构建并推送 ${{ inputs.image }} 镜像
+    runs-on: [self-hosted]
+    timeout-minutes: ${{ inputs.job-timeout }}
+    env:
+      # 与调用方 ci.yml 的 workflow 级 env.REGISTRY 保持一致：可复用工作流读不到
+      # 调用方的 env，两边只能各写一份，改地址时必须同时改这里
+      REGISTRY: ccr.ccs.tencentyun.com
+      NAMESPACE: ${{ secrets.TCR_NAMESPACE }}
+    steps:
+      - name: Checkout / 检出代码
+        uses: actions/checkout@v6
+
+      # 本机持久 builder（buildkitd 配国内 docker.io 镜像源 + 本地缓存跨 job 持久，
+      # 见 ~/Workspace/actions-runner/buildkitd.toml）。不用 setup-buildx-action——
+      # 它会另建临时 builder 顶掉选择
+      - name: Select builder / 选择构建器
+        run: docker buildx use ci-builder
+
+      # id + 重试条件：登录失败属配置错误，不进重试（避免白建镜像且盖住真错）
+      - name: Login to TCR / 登录腾讯云容器镜像服务
+        id: login
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.TCR_USERNAME }}
+          password: ${{ secrets.TCR_PASSWORD }}
+
+      - name: Resolve tags / 解析标签
+        id: vars
+        run: |
+          {
+            echo "sha_short=$(git rev-parse --short=7 "$GITHUB_SHA")"
+            echo "branch=$(echo "${GITHUB_REF#refs/heads/}" | tr '/' '-')"
+            echo "app_version=$(cat VERSION).${GITHUB_RUN_NUMBER}"
+          } >> "$GITHUB_OUTPUT"
+
+      # 只构建不入库：load 进本地 docker，buildx 本地缓存保留，失败重跑秒级复用
+      # provenance: false——TCR 不认 OCI attestation 附加清单
+      - name: Build image / 本地构建镜像
+        id: build
+        uses: docker/build-push-action@v7
+        timeout-minutes: ${{ inputs.build-timeout }}
+        with:
+          context: ${{ inputs.build-context }}
+          file: ${{ inputs.dockerfile }}
+          push: false
+          load: true
+          provenance: false
+          platforms: linux/amd64
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.NAMESPACE }}/${{ inputs.image }}:${{ steps.vars.outputs.branch }}-${{ steps.vars.outputs.sha_short }}
+          build-args: |
+            ${{ inputs.app-version && format('VITE_APP_VERSION={0}', steps.vars.outputs.app_version) || '' }}
+            ${{ inputs.build-args }}
+
+      # continue-on-error：首推失败不染红 job，成败由后面的裁定步骤说了算
+      # （重试条件须用 outcome 而非 failure()，continue-on-error 会把 failure() 归 false）
+      - name: Push to TCR / 推送镜像
+        id: push
+        continue-on-error: true
+        timeout-minutes: 15
+        env:
+          IMAGE: ${{ env.REGISTRY }}/${{ env.NAMESPACE }}/${{ inputs.image }}
+          VERSION_TAG: ${{ steps.vars.outputs.branch }}-${{ steps.vars.outputs.sha_short }}
+          PUSH_ATTEMPTS: 3
+        run: |
+          set -euo pipefail
+          attempt=1
+          while [ "$attempt" -le "$PUSH_ATTEMPTS" ]; do
+            echo "[push] 第 $attempt/$PUSH_ATTEMPTS 次：$IMAGE:$VERSION_TAG"
+            if docker push "$IMAGE:$VERSION_TAG"; then
+              exit 0
+            fi
+            echo "[push] 第 $attempt 次失败" >&2
+            attempt=$((attempt + 1))
+            # 不用 `[ ... ] && sleep`：条件为假时整个 && 复合命令返回 1，
+            # set -e 下会把循环体当失败直接终止（最后一轮必踩）
+            if [ "$attempt" -le "$PUSH_ATTEMPTS" ]; then
+              sleep 10
+            fi
+          done
+          echo "[push] $PUSH_ATTEMPTS 次全部失败" >&2
+          exit 1
+
+      - name: Conclude push outcome / 推送结论裁定
+        if: always()
+        # 裁定顺序 = 登录 → 构建 → 推送：前一步失败时后一步的 outcome 是 skipped，
+        # 不按顺序判就会把「登录失败」报成「构建失败」，把真错盖住
+        # 分支名经 env 传入：分支名允许含 $ ` " 等字符，直接插进 run 脚本等于开了注入面
+        env:
+          BRANCH: ${{ steps.vars.outputs.branch }}
+          SHA_SHORT: ${{ steps.vars.outputs.sha_short }}
+        run: |
+          # 登录失败是配置问题，重试无意义，且会让构建步骤被跳过——
+          # 不单独判，日志里只会看到「构建失败」，把真错盖住
+          if [ "${{ steps.login.outcome }}" != "success" ]; then
+            echo "[FAIL] 镜像仓库登录失败（配置问题，重试无意义）" >&2
+            exit 1
+          fi
+          if [ "${{ steps.build.outcome }}" != "success" ]; then
+            echo "[FAIL] 镜像构建失败" >&2
+            exit 1
+          fi
+          if [ "${{ steps.push.outcome }}" = "success" ]; then
+            echo "[OK] 镜像推送成功：${{ env.REGISTRY }}/${{ env.NAMESPACE }}/${{ inputs.image }}:${BRANCH}-${SHA_SHORT}"
+          else
+            echo "[FAIL] 镜像推送失败（重试耗尽）" >&2
+            exit 1
+          fi
+
+      - name: Output image info / 输出镜像信息
+        env:
+          BRANCH: ${{ steps.vars.outputs.branch }}
+          SHA_SHORT: ${{ steps.vars.outputs.sha_short }}
+        run: |
+          echo "Image pushed: ${{ env.REGISTRY }}/${{ env.NAMESPACE }}/${{ inputs.image }}:${BRANCH}-${SHA_SHORT}"

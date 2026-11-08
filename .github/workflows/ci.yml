@@ -31,7 +31,6 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
   NODE_VERSION: '22'
   REGISTRY: ccr.ccs.tencentyun.com
-  NAMESPACE: ${{ secrets.TCR_NAMESPACE }}
 
 jobs:
   # ============================================================
@@ -325,181 +324,61 @@ jobs:
           echo "schema 一致：列/索引/约束三清单在增量与从零路径下完全相同"
 
   # ============================================================
-  # Stage 3: Docker 镜像构建与推送（四镜像并行 job，互不拖累）
+  # Stage 3: Docker 镜像构建与推送（五个镜像并行 job，互不拖累）
   # 构建机为自托管 runner（Mac，本机直推 TCR 国内链路，无跨境 stall）；
-  # 构建与推送分离保留：build 失败可秒级重跑，push 走简单两连推
+  # 构建与推送分离保留：build 失败可秒级重跑，push 走简单两连推。
+  # 五个 job 的构建推送语义收敛到 release-image.yml（可复用流水线），
+  # 这里只声明「构建哪个镜像、哪个 Dockerfile、什么上下文」。
   # ============================================================
   docker-web:
     name: Docker Web / Web 镜像构建推送
-    runs-on: [self-hosted]
     needs: [backend, web, db-migration-guard, db-incremental-guard]
     # push 到 develop/main 自动构建；workflow_dispatch 供首次打通 TCR 时手动触发
     if: (github.event_name == 'push' && (github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main')) || github.event_name == 'workflow_dispatch'
-    timeout-minutes: 90
-
-    steps:
-      - name: Checkout / 检出代码
-        uses: actions/checkout@v6
-
-      # 本机持久 builder（buildkitd 配国内 docker.io 镜像源 + 本地缓存跨 job 持久，见 ~/Workspace/actions-runner/buildkitd.toml）
-      - name: Select builder / 选择构建器
-        run: docker buildx use ci-builder
-
-      - name: Login to TCR / 登录腾讯云容器镜像服务
-        uses: docker/login-action@v4
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ secrets.TCR_USERNAME }}
-          password: ${{ secrets.TCR_PASSWORD }}
-
-      - name: Resolve tags / 解析标签
-        id: vars
-        run: |
-          {
-            echo "sha_short=$(git rev-parse --short=7 "$GITHUB_SHA")"
-            echo "branch=$(echo "${GITHUB_REF#refs/heads/}" | tr '/' '-')"
-            echo "app_version=$(cat VERSION).${GITHUB_RUN_NUMBER}"
-          } >> "$GITHUB_OUTPUT"
-
-      - name: Build image / 本地构建镜像（buildx 本地缓存）
-        # 只构建不入库：load 进本地 docker，buildx 本地缓存保留，失败重跑秒级复用
-        uses: docker/build-push-action@v7
-        timeout-minutes: 20
-        with:
-          context: .
-          file: docker/web/Dockerfile
-          push: false
-          load: true
-          provenance: false
-          platforms: linux/amd64
-          tags: |
-            ${{ env.REGISTRY }}/${{ env.NAMESPACE }}/web:${{ steps.vars.outputs.branch }}-${{ steps.vars.outputs.sha_short }}
-          build-args: |
-            VITE_APP_VERSION=${{ steps.vars.outputs.app_version }}
-      - name: Push to TCR / 推送镜像
-        # 构建机直推国内 TCR，链路稳定；失败直接重跑 job（macOS 无 GNU timeout，跨境期重型重试已去）
-        timeout-minutes: 15
-        env:
-          IMAGE: ${{ env.REGISTRY }}/${{ env.NAMESPACE }}/web
-          VERSION_TAG: ${{ steps.vars.outputs.branch }}-${{ steps.vars.outputs.sha_short }}
-        run: |
-          set -eu
-          docker push "$IMAGE:$VERSION_TAG"
+    uses: ./.github/workflows/release-image.yml
+    with:
+      image: web
+      dockerfile: docker/web/Dockerfile
+      app-version: true
+    secrets:
+      TCR_USERNAME: ${{ secrets.TCR_USERNAME }}
+      TCR_PASSWORD: ${{ secrets.TCR_PASSWORD }}
+      TCR_NAMESPACE: ${{ secrets.TCR_NAMESPACE }}
 
   docker-collector:
     name: Docker Collector / 采集镜像构建推送
-    runs-on: [self-hosted]
     needs: [backend, web, db-migration-guard, db-incremental-guard]
     if: (github.event_name == 'push' && (github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main')) || github.event_name == 'workflow_dispatch'
-    timeout-minutes: 90
-
-    steps:
-      - name: Checkout / 检出代码
-        uses: actions/checkout@v6
-
-      # 本机持久 builder（buildkitd 配国内 docker.io 镜像源 + 本地缓存跨 job 持久，见 ~/Workspace/actions-runner/buildkitd.toml）
-      - name: Select builder / 选择构建器
-        run: docker buildx use ci-builder
-
-      - name: Login to TCR / 登录腾讯云容器镜像服务
-        uses: docker/login-action@v4
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ secrets.TCR_USERNAME }}
-          password: ${{ secrets.TCR_PASSWORD }}
-
-      - name: Resolve tags / 解析标签
-        id: vars
-        run: |
-          {
-            echo "sha_short=$(git rev-parse --short=7 "$GITHUB_SHA")"
-            echo "branch=$(echo "${GITHUB_REF#refs/heads/}" | tr '/' '-')"
-          } >> "$GITHUB_OUTPUT"
-
-      - name: Build image / 本地构建镜像（buildx 本地缓存）
-        # 只构建不入库：load 进本地 docker，buildx 本地缓存保留，失败重跑秒级复用
-        uses: docker/build-push-action@v7
-        timeout-minutes: 20
-        with:
-          context: .
-          file: docker/collector/Dockerfile
-          push: false
-          load: true
-          provenance: false
-          platforms: linux/amd64
-          tags: |
-            ${{ env.REGISTRY }}/${{ env.NAMESPACE }}/collector:${{ steps.vars.outputs.branch }}-${{ steps.vars.outputs.sha_short }}
-      - name: Push to TCR / 推送镜像
-        # 构建机直推国内 TCR，链路稳定；失败直接重跑 job（macOS 无 GNU timeout，跨境期重型重试已去）
-        timeout-minutes: 15
-        env:
-          IMAGE: ${{ env.REGISTRY }}/${{ env.NAMESPACE }}/collector
-          VERSION_TAG: ${{ steps.vars.outputs.branch }}-${{ steps.vars.outputs.sha_short }}
-        run: |
-          set -eu
-          docker push "$IMAGE:$VERSION_TAG"
+    uses: ./.github/workflows/release-image.yml
+    with:
+      image: collector
+      dockerfile: docker/collector/Dockerfile
+    secrets:
+      TCR_USERNAME: ${{ secrets.TCR_USERNAME }}
+      TCR_PASSWORD: ${{ secrets.TCR_PASSWORD }}
+      TCR_NAMESPACE: ${{ secrets.TCR_NAMESPACE }}
 
   # ============================================================
   # Stage 4: 抖音签名 sidecar 镜像（F-SOC；无 ENTRYPOINT；镜像固定 amd64）
   # ============================================================
   docker-signer:
     name: Docker Signer / 签名镜像构建推送
-    runs-on: [self-hosted]
     needs: [backend, web, db-migration-guard, db-incremental-guard]
     if: (github.event_name == 'push' && (github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main')) || github.event_name == 'workflow_dispatch'
-    timeout-minutes: 90
-
-    steps:
-      - name: Checkout / 检出代码
-        uses: actions/checkout@v6
-
-      # 本机持久 builder（buildkitd 配国内 docker.io 镜像源 + 本地缓存跨 job 持久，见 ~/Workspace/actions-runner/buildkitd.toml）
-      - name: Select builder / 选择构建器
-        run: docker buildx use ci-builder
-
-      - name: Login to TCR / 登录腾讯云容器镜像服务
-        uses: docker/login-action@v4
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ secrets.TCR_USERNAME }}
-          password: ${{ secrets.TCR_PASSWORD }}
-
-      - name: Resolve tags / 解析标签
-        id: vars
-        run: |
-          {
-            echo "sha_short=$(git rev-parse --short=7 "$GITHUB_SHA")"
-            echo "branch=$(echo "${GITHUB_REF#refs/heads/}" | tr '/' '-')"
-          } >> "$GITHUB_OUTPUT"
-
-      - name: Build image / 本地构建镜像（buildx 本地缓存）
-        # 只构建不入库：load 进本地 docker，buildx 本地缓存保留，失败重跑秒级复用
-        uses: docker/build-push-action@v7
-        timeout-minutes: 20
-        with:
-          context: .
-          file: docker/signer/Dockerfile
-          push: false
-          load: true
-          provenance: false
-          platforms: linux/amd64
-          tags: |
-            ${{ env.REGISTRY }}/${{ env.NAMESPACE }}/douyin-signer:${{ steps.vars.outputs.branch }}-${{ steps.vars.outputs.sha_short }}
-          # playwright 浏览器二进制无国内镜像，经宿主机代理拉取（Docker 预定义 ARG，无需 Dockerfile 声明；
-          # 与本地构建同法，代理离线时此步失败属预期）
-          build-args: |
-            HTTPS_PROXY=http://host.docker.internal:7897
-            HTTP_PROXY=http://host.docker.internal:7897
-            NO_PROXY=localhost,127.0.0.1,host.docker.internal,mirrors.tuna.tsinghua.edu.cn,pypi.tuna.tsinghua.edu.cn
-      - name: Push to TCR / 推送镜像
-        # 构建机直推国内 TCR，链路稳定；失败直接重跑 job（macOS 无 GNU timeout，跨境期重型重试已去）
-        timeout-minutes: 15
-        env:
-          IMAGE: ${{ env.REGISTRY }}/${{ env.NAMESPACE }}/douyin-signer
-          VERSION_TAG: ${{ steps.vars.outputs.branch }}-${{ steps.vars.outputs.sha_short }}
-        run: |
-          set -eu
-          docker push "$IMAGE:$VERSION_TAG"
+    uses: ./.github/workflows/release-image.yml
+    with:
+      image: douyin-signer
+      dockerfile: docker/signer/Dockerfile
+      # playwright 浏览器二进制无国内镜像，经宿主机代理拉取（Docker 预定义 ARG，无需
+      # Dockerfile 声明；与本地构建同法，代理离线时此步失败属预期）
+      build-args: |
+        HTTPS_PROXY=http://host.docker.internal:7897
+        HTTP_PROXY=http://host.docker.internal:7897
+        NO_PROXY=localhost,127.0.0.1,host.docker.internal,mirrors.tuna.tsinghua.edu.cn,pypi.tuna.tsinghua.edu.cn
+    secrets:
+      TCR_USERNAME: ${{ secrets.TCR_USERNAME }}
+      TCR_PASSWORD: ${{ secrets.TCR_PASSWORD }}
+      TCR_NAMESPACE: ${{ secrets.TCR_NAMESPACE }}
 
   # ============================================================
   # Stage 5: 模拟盘柜台 sidecar 镜像（掘金 REST 网关；纯 Python，
@@ -507,56 +386,17 @@ jobs:
   # ============================================================
   docker-paper-trade:
     name: Docker Paper Trade / 模拟盘镜像构建推送
-    runs-on: [self-hosted]
     needs: [backend, web, db-migration-guard, db-incremental-guard]
     if: (github.event_name == 'push' && (github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main')) || github.event_name == 'workflow_dispatch'
-    timeout-minutes: 90
-
-    steps:
-      - name: Checkout / 检出代码
-        uses: actions/checkout@v6
-
-      # 本机持久 builder（buildkitd 配国内 docker.io 镜像源 + 本地缓存跨 job 持久，见 ~/Workspace/actions-runner/buildkitd.toml）
-      - name: Select builder / 选择构建器
-        run: docker buildx use ci-builder
-
-      - name: Login to TCR / 登录腾讯云容器镜像服务
-        uses: docker/login-action@v4
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ secrets.TCR_USERNAME }}
-          password: ${{ secrets.TCR_PASSWORD }}
-
-      - name: Resolve tags / 解析标签
-        id: vars
-        run: |
-          {
-            echo "sha_short=$(git rev-parse --short=7 "$GITHUB_SHA")"
-            echo "branch=$(echo "${GITHUB_REF#refs/heads/}" | tr '/' '-')"
-          } >> "$GITHUB_OUTPUT"
-
-      - name: Build image / 本地构建镜像（buildx 本地缓存）
-        # 只构建不入库：load 进本地 docker，buildx 本地缓存保留，失败重跑秒级复用
-        uses: docker/build-push-action@v7
-        timeout-minutes: 20
-        with:
-          context: docker/paper-trade
-          file: docker/paper-trade/Dockerfile
-          push: false
-          load: true
-          provenance: false
-          platforms: linux/amd64
-          tags: |
-            ${{ env.REGISTRY }}/${{ env.NAMESPACE }}/paper-trade:${{ steps.vars.outputs.branch }}-${{ steps.vars.outputs.sha_short }}
-      - name: Push to TCR / 推送镜像
-        # 构建机直推国内 TCR，链路稳定；失败直接重跑 job（macOS 无 GNU timeout，跨境期重型重试已去）
-        timeout-minutes: 15
-        env:
-          IMAGE: ${{ env.REGISTRY }}/${{ env.NAMESPACE }}/paper-trade
-          VERSION_TAG: ${{ steps.vars.outputs.branch }}-${{ steps.vars.outputs.sha_short }}
-        run: |
-          set -eu
-          docker push "$IMAGE:$VERSION_TAG"
+    uses: ./.github/workflows/release-image.yml
+    with:
+      image: paper-trade
+      dockerfile: docker/paper-trade/Dockerfile
+      build-context: docker/paper-trade
+    secrets:
+      TCR_USERNAME: ${{ secrets.TCR_USERNAME }}
+      TCR_PASSWORD: ${{ secrets.TCR_PASSWORD }}
+      TCR_NAMESPACE: ${{ secrets.TCR_NAMESPACE }}
 
   # ============================================================
   # Stage 3.5: 迁移镜像构建推送（路线 C）
@@ -565,53 +405,18 @@ jobs:
   # ============================================================
   docker-migrate:
     name: Docker Migrate / 迁移镜像构建推送
-    runs-on: [self-hosted]
     needs: [db-migration-guard, db-incremental-guard]
     if: (github.event_name == 'push' && (github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main')) || github.event_name == 'workflow_dispatch'
-    timeout-minutes: 30
-
-    steps:
-      - name: Checkout / 检出代码
-        uses: actions/checkout@v6
-
-      - name: Select builder / 选择构建器
-        run: docker buildx use ci-builder
-
-      - name: Login to TCR / 登录腾讯云容器镜像服务
-        uses: docker/login-action@v4
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ secrets.TCR_USERNAME }}
-          password: ${{ secrets.TCR_PASSWORD }}
-
-      - name: Resolve tags / 解析标签
-        id: vars
-        run: |
-          {
-            echo "sha_short=$(git rev-parse --short=7 "$GITHUB_SHA")"
-            echo "branch=$(echo "${GITHUB_REF#refs/heads/}" | tr '/' '-')"
-          } >> "$GITHUB_OUTPUT"
-
-      - name: Build image / 本地构建镜像
-        uses: docker/build-push-action@v7
-        timeout-minutes: 15
-        with:
-          context: .
-          file: docker/migrate/Dockerfile
-          push: false
-          load: true
-          provenance: false
-          platforms: linux/amd64
-          tags: |
-            ${{ env.REGISTRY }}/${{ env.NAMESPACE }}/migrate:${{ steps.vars.outputs.branch }}-${{ steps.vars.outputs.sha_short }}
-      - name: Push to TCR / 推送镜像
-        timeout-minutes: 15
-        env:
-          IMAGE: ${{ env.REGISTRY }}/${{ env.NAMESPACE }}/migrate
-          VERSION_TAG: ${{ steps.vars.outputs.branch }}-${{ steps.vars.outputs.sha_short }}
-        run: |
-          set -eu
-          docker push "$IMAGE:$VERSION_TAG"
+    uses: ./.github/workflows/release-image.yml
+    with:
+      image: migrate
+      dockerfile: docker/migrate/Dockerfile
+      job-timeout: 30
+      build-timeout: 15
+    secrets:
+      TCR_USERNAME: ${{ secrets.TCR_USERNAME }}
+      TCR_PASSWORD: ${{ secrets.TCR_PASSWORD }}
+      TCR_NAMESPACE: ${{ secrets.TCR_NAMESPACE }}
 
   # ============================================================
   # Stage 6: 本机测试环境自动更新（合并 develop 即生效）
@@ -630,6 +435,9 @@ jobs:
     env:
       # 测试环境部署根目录走仓库变量（仓库为 public，主机与路径不入 YAML）
       DEPLOY_ROOT: ${{ vars.DEPLOY_ROOT }}
+      # 镜像命名空间显式给：清理用的过滤参数必须是完整仓库名
+      # registry/namespace/repo，只给短前缀匹配不到且静默返回空
+      DEPLOY_NAMESPACE: ${{ secrets.TCR_NAMESPACE }}
 
     steps:
       - name: Checkout / 检出代码
@@ -682,6 +490,68 @@ jobs:
             echo "- 本次未部署任何内容：未拉镜像、未执行迁移、未换容器"
             echo "- 后续：如需验证 develop 的部署效果，先在本机拉起 compose 栈再重跑 develop 流水线"
           } >> "$GITHUB_STEP_SUMMARY"
+
+  # ============================================================
+  # Stage 6.5: 构建机镜像回收（与部署成败无关）
+  # 构建机上 CI 把镜像 load 进本地 docker。deploy.sh 里的清理只在该机
+  # 真正跑到时触发，但：①docker-* 任一失败 → deploy-staging 被 needs 跳过；
+  # ②main 分支的发布走 ubuntu-latest，构建机根本不参与。
+  # 两条路都让构建机镜像只增不减（2026-11-08 实测：五个仓库各积 7~8 个 sha tag）。
+  # 故单独一个 job，条件为 always() && !cancelled() && (push || workflow_dispatch)
+  # —— 无论构建与部署成败都回收一次，但 PR 与工作流取消时不起新 job。
+  # 与 deploy-staging 共用并发组：避免回收与部署同时动本地镜像。
+  #
+  # **不在 PR 上跑**：本 job 会执行仓库里的 scripts/deploy.sh，而自托管 runner
+  # 是持有 docker 与部署目录权限的开发机。仓库是 public，PR（含 fork）若在此
+  # 执行，等于把自托管机开放给任意代码。既有不变量是「PR 从不在自托管机上
+  # 执行仓库代码」，这里必须守住。
+  # ============================================================
+  image-gc:
+    name: Image GC / 构建机镜像回收
+    runs-on: [self-hosted]
+    needs: [docker-web, docker-collector, docker-signer, docker-paper-trade, docker-migrate, deploy-staging]
+    # always()：needed 里任一 job 被跳过（如 main 推送时 deploy-staging 不跑）
+    # 默认会把本 job 一起跳过；写上它才禁得住这条级联
+    # !cancelled()：工作流被取消时不再起新 job
+    # push/workflow_dispatch：PR 不跑（见上面的理由）
+    if: ${{ always() && !cancelled() && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}
+    timeout-minutes: 15
+    concurrency:
+      group: deploy-staging
+      cancel-in-progress: false
+    env:
+      DEPLOY_ROOT: ${{ vars.DEPLOY_ROOT }}
+      DEPLOY_NAMESPACE: ${{ secrets.TCR_NAMESPACE }}
+
+    steps:
+      - name: Checkout / 检出代码
+        uses: actions/checkout@v6
+
+      - name: Preconditions / 前置校验（缺变量即明确失败）
+        run: |
+          set -eu
+          [ -n "$DEPLOY_ROOT" ] || { echo "ERROR: 未配置仓库变量 DEPLOY_ROOT" >&2; exit 1; }
+          [ -d "$DEPLOY_ROOT" ] || { echo "ERROR: 部署根目录不存在：$DEPLOY_ROOT" >&2; exit 1; }
+
+      - name: Sync deploy script / 同步部署脚本
+        # 只同步脚本本身：compose 与 .env 是测试环境的常驻资产，回收只读不改
+        run: |
+          set -eu
+          mkdir -p "$DEPLOY_ROOT/scripts"
+          cp scripts/deploy.sh "$DEPLOY_ROOT/scripts/deploy.sh"
+          chmod 755 "$DEPLOY_ROOT/scripts/deploy.sh"
+
+      - name: GC / 回收镜像
+        # 回收失败不判红：清理是维护动作，染红会把「部署成功」的结论搅浑。
+        # 真出问题看警告与步骤日志（清理报告实际删除张数与字节数）
+        id: gc
+        continue-on-error: true
+        run: bash "$DEPLOY_ROOT/scripts/deploy.sh" --env staging --gc-only
+
+      - name: GC result / 回收失败显式告警
+        if: steps.gc.outcome == 'failure'
+        run: |
+          echo "::warning::构建机镜像回收失败（步骤日志里有原因）：磁盘可能继续涨，下次流水线仍会重试"
 
   # ============================================================
   # Stage 7: 生产环境发布（Environment 人工审批后方可执行）

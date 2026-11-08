@@ -2,6 +2,7 @@
 
 > 部署逻辑唯一入口：`scripts/deploy.sh`。CI 与人工都只调它，命令形态完全一致：
 > `bash scripts/deploy.sh --env <staging|prod> --tag <image-tag>`
+> （另有只回收镜像的 `bash scripts/deploy.sh --env <staging|prod> --gc-only`，见 §4.1）
 
 ## 1. 流水线拓扑
 
@@ -10,6 +11,7 @@ PR → backend + web + db-migration-guard + db-incremental-guard   （全绿才�
    → docker-web / docker-collector / docker-signer / docker-paper-trade / docker-migrate（构建推 TCR）
    → deploy-staging    （自托管 runner = 本机测试环境，自动）
    → deploy-production （GitHub Environment `production` + 人工审批 + 串行）
+   → image-gc          （构建机镜像回收，if: always()，与成败无关）
 ```
 
 - 镜像 tag = `<branch>-<sha_short>`，**不可变**。不推 `latest`——它是回滚可靠性的前提
@@ -108,7 +110,50 @@ sudo bash scripts/deploy.sh --env prod --tag main-<sha_short>
 9. **失败回滚**：任一步失败 → 用 `previous_tag` 重新 pull + up + 复查，
    状态置 `FAILED_ROLLED_BACK`，**保留现场**（日志不删）
 10. **清理**：每仓库保留最新 3 个 `<branch>-<sha>` tag（当前 + 2 个回滚目标），
-    只跑 `docker image prune -f`（清悬空层，**绝不 `-a`**，否则连回滚目标一起删）
+    只跑 `docker image prune -f`（清悬空层，**绝不 `-a`**，否则连回滚目标一起删）。
+    清理由**退出兜底**保证：无论成功、失败、跳过还是中途退出都跑一次
+    （原先只挂在成功路径末尾，「磁盘余量不足 → 预检失败 → 不清理 → 磁盘永远不足」
+    是个闭环）。清理报告会报**实际删除的张数与字节数**；
+    过滤落空（本地无该仓库镜像）一律 **WARN**——空结果不是「无需清理」的证据，
+    多半是仓库路径写错（`docker images` 按完整仓库名 `registry/namespace/repo` 匹配，
+    只给短前缀匹配不到且静默返回空）；
+    另有 `latest` 标签镜像时也 **WARN**（项目禁用 `latest` 推送，它不匹配 sha 版本规则、
+    既不计入保留额度也不在清理范围，只报不删，删不删由人定）
+
+### 4.1 只回收镜像（`--gc-only`）
+
+```bash
+bash scripts/deploy.sh --env staging --gc-only
+```
+
+不部署、不碰 `.env`、不碰容器，只按上述规则回收镜像。给 CI 一个**与部署成败无关**
+的清理入口——构建机上 CI 把镜像 `load` 进本地 docker，清理只挂在部署路径末尾时，
+构建失败或走 main 分支发布（不经本机）都让镜像只增不减。
+
+### 4.2 CI 侧的镜像回收
+
+`.github/workflows/ci.yml` 有一个独立 job `image-gc`：
+`if: ${{ always() && !cancelled() && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}`，
+无论构建与部署成败都跑一次 `deploy.sh --env staging --gc-only`，
+与 `deploy-staging` 共用并发组（避免回收与部署同时动本地镜像）。
+回收失败不判红（清理是维护动作，染红会把「部署成功」的结论搅浑），看警告与步骤日志。
+
+**不在 PR 上跑**：该 job 会执行仓库里的 `scripts/deploy.sh`，而自托管 runner
+是持有 docker 与部署目录权限的开发机。仓库是 public，PR（含 fork）若在此执行，
+等于把自托管机开放给任意代码。既有不变量「PR 从不在自托管机上执行仓库代码」必须守住，
+故条件里除 `always()` / `!cancelled()` 外还要求事件是 push 或手动触发。
+
+### 4.3 镜像构建推送的可复用流水线
+
+五个镜像的构建推送语义收敛在 `.github/workflows/release-image.yml`
+（`on: workflow_call`），`ci.yml` 里只声明「构建哪个镜像、哪个 Dockerfile、什么上下文」。
+语义只有一份，改一处漏两处的风险消失。
+
+保留 ai-invest 的**构建与推送分离**：build 只 `load` 进本地 docker
+（`push: false` + `load: true`），推送由独立的 `docker push` 步骤做——
+buildx 本地缓存保留在构建机上，构建失败可秒级重跑；推送走简单重试。
+推送失败自动重试（最多 3 次），成败由 `Conclude push outcome` 步骤裁定：
+任一次尝试成功即 job 成功，三次皆败才判红；登录失败单独判定（配置问题，重试无意义）。
 
 ## 5. 手动回滚
 
@@ -140,6 +185,8 @@ sudo bash scripts/deploy.sh --env prod --tag main-yyyyyyy
 | 迁移失败 | 看 `.deploy-state`（应仍是上一版本 status=OK）；修好迁移文件后重跑 deploy.sh |
 | 回滚也失败 | 状态 `FAILED_ROLLED_BACK_FAILED`，需人工介入；此时不要清日志 |
 | 磁盘告警 | `docker system df`；`deploy.sh` 已按仓库保留 3 个 tag + `docker image prune -f` |
+| 清理报「过滤未命中」 | 仓库路径与本地镜像对不上（`docker images` 按完整仓库名匹配）：核对 `docker images` 里的完整路径与 `DEPLOY_NAMESPACE`，别用短前缀 |
+| 清理报「删除 0 个镜像」 | 可能是本地本来就只有保留数量以内的版本（正常），也可能是 tag 形态不匹配 `^(main\|develop)-[0-9a-f]{7,40}$`（非 sha tag 不参与清理） |
 
 ## 7. 迁移纪律
 

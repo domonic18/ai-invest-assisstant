@@ -107,6 +107,9 @@ AI Invest Assistant 遵循前后端分离的现代 Web 应用架构。完整的�
 - **镜像 tag 不可变**：`<branch>-<sha_short>`，不推 `latest`（latest 会被回滚目标顶掉，是回滚可靠性的前提）。`.env` 的 `APP_TAG` 由脚本自动写入，`.env.bak*` 最多留 3 份
 - **失败自动回滚**：换容器或健康检查失败 → 自动回退到 `previous_tag` 并保留现场（日志不删）；回滚状态见 `.deploy-state`
 - **生产机不接受 CI 内联命令**：发布只经 SSH 调用 `scripts/deploy.sh`（CI 从 main 打包直传的同一份脚本，经 Environment 审批后才发出）；生产机到 GitHub 链路不稳，发布资产一律由 CI 直传，不依赖服务器 git fetch。TCR 凭据只存服务器侧，CI 不向生产机传 registry 密码
+- **镜像清理由退出兜底保证**：无论成功、失败还是跳过都跑一次（不挂在成功路径末尾，否则「磁盘不足 → 预检失败 → 不清理 → 磁盘永远不足」成闭环）；清理报告实际删除张数/字节数，**过滤落空一律 WARN**（`docker images` 按完整仓库名 `registry/namespace/repo` 匹配，只给短前缀静默返回空，空结果不是「无需清理」的证据）
+- **镜像构建推送语义只有一份**：五个镜像的构建推送收敛在 `.github/workflows/release-image.yml`（`on: workflow_call`），保留 ai-invest 的构建/推送分离（build 只 load 进本地 docker，推送独立做并带重试），成败由结论裁定步骤说了算
+- **构建机镜像回收独立成 job**：CI 的 `image-gc` job 跑 `deploy.sh --env staging --gc-only`，与部署成败无关（构建机 CI 把镜像 load 进本地 docker，清理只挂部署路径末尾时镜像只增不减）。条件是 `always() && !cancelled() && (push || workflow_dispatch)`——**PR（含 fork）绝不在自托管 runner 上执行仓库代码**（仓库为 public，自托管机持有 docker 与部署目录权限）
 - 完整流程与排障见 `docs/deployment-runbook.md`
 
 ### API 设计原则
