@@ -628,11 +628,18 @@ jobs:
       group: deploy-staging
       cancel-in-progress: false
     env:
-      DEPLOY_ROOT: /Users/deadwalk/Code/ai-invest-assisstant
+      # 测试环境部署根目录走仓库变量（仓库为 public，主机与路径不入 YAML）
+      DEPLOY_ROOT: ${{ vars.DEPLOY_ROOT }}
 
     steps:
       - name: Checkout / 检出代码
         uses: actions/checkout@v6
+
+      - name: Preconditions / 前置校验（缺变量即明确失败，不半途部署）
+        run: |
+          set -eu
+          [ -n "$DEPLOY_ROOT" ] || { echo "ERROR: 未配置仓库变量 DEPLOY_ROOT" >&2; exit 1; }
+          [ -d "$DEPLOY_ROOT" ] || { echo "ERROR: 部署根目录不存在：$DEPLOY_ROOT" >&2; exit 1; }
 
       - name: Login to TCR / 登录腾讯云容器镜像服务
         uses: docker/login-action@v4
@@ -678,12 +685,24 @@ jobs:
       group: deploy-production
       cancel-in-progress: false
     env:
-      DEPLOY_HOST: ubuntu@49.233.145.117
-      DEPLOY_PATH: /opt/investment
+      # 生产机地址与部署目录走仓库变量（仓库为 public，主机与路径不入 YAML）
+      DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
+      DEPLOY_PATH: ${{ vars.DEPLOY_PATH }}
 
     steps:
       - name: Checkout / 检出代码
         uses: actions/checkout@v6
+
+      - name: Preconditions / 前置校验（缺变量即明确失败，不半途发布）
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          set -eu
+          [ -n "$DEPLOY_HOST" ] || { echo "ERROR: 未配置仓库变量 DEPLOY_HOST" >&2; exit 1; }
+          [ -n "$DEPLOY_PATH" ] || { echo "ERROR: 未配置仓库变量 DEPLOY_PATH" >&2; exit 1; }
+          [ -n "$DEPLOY_SSH_KEY" ] || { echo "ERROR: 未配置仓库 secret DEPLOY_SSH_KEY" >&2; exit 1; }
+          [ -n "$DEPLOY_KNOWN_HOSTS" ] || { echo "ERROR: 未配置仓库 secret DEPLOY_KNOWN_HOSTS" >&2; exit 1; }
 
       - name: Setup SSH key / 配置免密密钥与主机指纹
         run: |
