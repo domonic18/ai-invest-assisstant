@@ -42,7 +42,7 @@ async def test_create_config_encrypts_password(session: AsyncSession) -> None:
         ProxyConfigCreate(
             name="clash-frp",
             protocol="http",
-            host="175.27.167.123",
+            host="203.0.113.10",
             port=17890,
             username="collector",
             password="s3cret-pass",

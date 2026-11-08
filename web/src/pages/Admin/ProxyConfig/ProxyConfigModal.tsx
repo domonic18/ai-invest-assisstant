@@ -81,7 +81,7 @@ export function ProxyConfigModal({ open, editing, onCancel, onSubmit, loading }:
           name="host"
           rules={[{ required: true, message: '请输入主机地址' }]}
         >
-          <Input placeholder="175.27.167.123" />
+          <Input placeholder="203.0.113.10" />
         </Form.Item>
 
         <Form.Item

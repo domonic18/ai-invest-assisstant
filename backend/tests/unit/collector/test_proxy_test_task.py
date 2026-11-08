@@ -14,7 +14,7 @@ def test_probe_success(mock_session_cls: MagicMock) -> None:
     response = MagicMock(status_code=204)
     mock_session_cls.return_value.__enter__.return_value.get.return_value = response
 
-    result = run_proxy_test("http://175.27.167.123:17890")
+    result = run_proxy_test("http://203.0.113.10:17890")
 
     assert result["ok"] is True
     assert result["status_code"] == 204
@@ -23,8 +23,8 @@ def test_probe_success(mock_session_cls: MagicMock) -> None:
     # 代理 URL 同时映射 http/https，探测带超时
     _, kwargs = mock_session_cls.return_value.__enter__.return_value.get.call_args
     assert kwargs["proxies"] == {
-        "http": "http://175.27.167.123:17890",
-        "https": "http://175.27.167.123:17890",
+        "http": "http://203.0.113.10:17890",
+        "https": "http://203.0.113.10:17890",
     }
     assert kwargs["timeout"] == 8.0
 
