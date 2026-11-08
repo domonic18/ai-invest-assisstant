@@ -7,7 +7,7 @@
 
 发布原先靠人工 SSH 上服务器手敲命令，存在三类硬伤：
 
-1. **发布不可复现**：生产机 `/opt/investment` 是 git clone，工作树有未提交改动，
+1. **发布不可复现**：生产机部署目录（仓库变量 `DEPLOY_PATH`）是 git clone，工作树有未提交改动，
    迁移文件靠手工拷贝——代码 / 配置 / 迁移三者不对齐，回滚难定位
 2. **磁盘无治理**：全链路无 prune / 保留策略，镜像 tag 只增不减
 3. **迁移无门禁**：CI 的 `db-migration-guard` 只验过**空库从零重放**，
@@ -132,7 +132,7 @@ PR → backend + web + db-migration-guard + db-incremental-guard   （全绿才�
 现象：`tar: docker/caddy/Caddyfile: Cannot open: File exists` /
 `tar: docker/caddy/Dockerfile: Cannot open: Permission denied`。
 
-根因：远端 `tar -xzf` 以 `ubuntu` 身份执行，而服务器 `/opt/investment/docker/caddy/`
+根因：远端 `tar -xzf` 以 `ubuntu` 身份执行，而服务器部署目录（`DEPLOY_PATH`）下的 `docker/caddy/`
 是 **root 属主**（2026-10-16 手工发布时以 root 创建，此后未改属主）。
 非 root 无法覆盖 root 属主目录里的文件 → tar 报错退出。
 tar 会跳过错误继续解后面的条目，所以 `scripts/deploy.sh`、25 个迁移、compose 事实上已落地，
