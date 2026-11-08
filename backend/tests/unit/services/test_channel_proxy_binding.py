@@ -52,7 +52,7 @@ async def _create_proxy(
         ProxyConfig(
             name=name,
             protocol="http",
-            host="175.27.167.123",
+            host="203.0.113.10",
             port=17890,
             username="collector",
             password_encrypted=encrypt_token("frp-pass"),
@@ -86,7 +86,7 @@ async def test_bound_enabled_proxy_resolves_url(session: AsyncSession) -> None:
 
     resolved = await resolve_collector_channel(session, "yahoo")
     assert resolved is not None
-    assert resolved["proxy_url"] == "http://collector:frp-pass@175.27.167.123:17890"
+    assert resolved["proxy_url"] == "http://collector:frp-pass@203.0.113.10:17890"
 
 
 async def test_bound_disabled_proxy_falls_back_to_direct(

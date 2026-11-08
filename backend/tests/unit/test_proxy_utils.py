@@ -8,8 +8,8 @@ pytestmark = pytest.mark.unit
 
 
 def test_no_credentials() -> None:
-    assert build_proxy_url("http", "175.27.167.123", 17890) == (
-        "http://175.27.167.123:17890"
+    assert build_proxy_url("http", "203.0.113.10", 17890) == (
+        "http://203.0.113.10:17890"
     )
 
 

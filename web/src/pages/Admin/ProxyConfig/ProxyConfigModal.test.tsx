@@ -9,7 +9,7 @@ const editing: ProxyConfig = {
   id: 1,
   name: 'Mac mini Clash',
   protocol: 'http',
-  host: '175.27.167.123',
+  host: '203.0.113.10',
   port: 17890,
   username: 'collector',
   passwordMasked: '********',

@@ -22,7 +22,7 @@ const proxies: ProxyConfig[] = [
     id: 3,
     name: 'frp-clash',
     protocol: 'http',
-    host: '175.27.167.123',
+    host: '203.0.113.10',
     port: 17890,
     username: 'collector',
     passwordMasked: '********',
@@ -84,7 +84,7 @@ describe('CollectorChannelConfigModal 代理绑定', () => {
 
     // Select 回显选中项 label（含主机:端口；Form 回显为异步）
     expect(
-      await screen.findByText('frp-clash（175.27.167.123:17890）'),
+      await screen.findByText('frp-clash（203.0.113.10:17890）'),
     ).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'OK', hidden: true }))

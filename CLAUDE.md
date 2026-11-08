@@ -77,6 +77,7 @@ AI Invest Assistant 遵循前后端分离的现代 Web 应用架构。完整的�
 - 在 API 网关级别认证用户 - 永远不要信任客户端令牌
 - CORS 配置：生产环境必须限制具体域名，不允许 `allow_origins=["*"]`
 - 在存储或处理前清理所有用户输入
+- **仓库为 public**：主机地址、部署路径、内网端口等真实值不进代码、文档与 workflow YAML，一律走仓库变量（`DEPLOY_HOST` / `DEPLOY_PATH` / `DEPLOY_ROOT`）与 secrets；文档里用 `<生产机>` / `<生产部署目录>` 一类占位符
 
 ### 错误处理
 

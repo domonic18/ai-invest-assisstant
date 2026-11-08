@@ -76,7 +76,7 @@ async def _add_proxy(
         ProxyConfig(
             name="clash",
             protocol="http",
-            host="175.27.167.123",
+            host="203.0.113.10",
             port=17890,
             username="collector",
             password_encrypted=encrypt_token("frp-pass"),
@@ -97,7 +97,7 @@ async def test_bound_enabled_proxy_injects_url(session: AsyncSession) -> None:
     configs = await resolve_channels_for_task(session, _TASK)
 
     assert [c.source for c in configs] == ["yahoo"]
-    assert configs[0].proxy_url == "http://collector:frp-pass@175.27.167.123:17890"
+    assert configs[0].proxy_url == "http://collector:frp-pass@203.0.113.10:17890"
 
 
 async def test_bound_disabled_proxy_direct_connection(session: AsyncSession) -> None:

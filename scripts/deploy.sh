@@ -17,6 +17,8 @@
 #   - 失败自动回滚到上一个 tag，回滚保留现场（日志不删）
 #   - 镜像按仓库分组保留最新 N 个（当前 + N-1 个回滚目标）；
 #     只清悬空层，绝不用 docker image prune -a（会删掉回滚目标）
+#   - staging 环境整栈未运行（有意停用）时跳过本次部署并以 0 退出，CI 另行标注；
+#     prod 无此豁免：环境异常一律硬失败
 #
 # 依赖：docker + docker compose v2；生产机需 root（docker 组权限不足）
 # ============================================================
@@ -40,6 +42,23 @@ APP_SERVICES="web douyin-signer paper-trade celery-beat celery-worker celery-wor
 log()  { printf '[deploy %s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*"; }
 warn() { printf '[deploy %s] WARN: %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*" >&2; }
 fail() { printf '[deploy %s] ERROR: %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*" >&2; exit 1; }
+
+# 环境整栈未运行时的跳过出口：明确记一笔并以 0 退出，
+# 让 CI 把「环境停着、没部署」与「部署成功」区分开，不让绿灯被误读。
+skip_deploy() {
+    local reason="$1"
+    log "=============================================================="
+    log "SKIP：本次部署已跳过"
+    log "原因：${reason}"
+    log "本次未做任何变更：未拉镜像、未执行迁移、未换容器、未改 .env"
+    log "如需真正部署，请先拉起该环境的 compose 栈，再重跑本流水线"
+    log "=============================================================="
+    # 在 CI 里把「跳过」透出给后续步骤（步骤输出可被 job 的其它 step 引用）
+    if [ -n "${GITHUB_OUTPUT:-}" ]; then
+        printf 'skipped=true\n' >> "$GITHUB_OUTPUT"
+    fi
+    exit 0
+}
 
 usage() {
     cat <<'EOF'
@@ -176,9 +195,18 @@ preflight() {
     fi
     log "预检通过：磁盘剩余 ${free_gb}G（${disk_path}），compose=$COMPOSE_FILE"
 
-    local pg_id pg_health
+    local pg_id pg_health running_any
     pg_id="$(compose ps -q postgres 2>/dev/null || true)"
-    [ -n "$pg_id" ] || fail "postgres 容器未运行（先执行 compose up -d postgres --wait）"
+    if [ -z "$pg_id" ]; then
+        # postgres 没跑。区分两种情形：
+        #   ①整栈都没跑 —— 环境被有意停用（测试环境已按决策停用），跳过本次部署
+        #   ②栈还在但 postgres 掉了 —— 真的故障，必须硬失败，不能拿「跳过」盖住
+        running_any="$(compose ps -q 2>/dev/null || true)"
+        if [ "$ENV_NAME" = "staging" ] && [ -z "$running_any" ]; then
+            skip_deploy "本机测试环境整栈未运行（无任何容器在跑，postgres 未启动）"
+        fi
+        fail "postgres 容器未运行（先执行 compose up -d postgres --wait）"
+    fi
     pg_health="$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$pg_id")"
     [ "$pg_health" = "healthy" ] || [ "$pg_health" = "running" ] \
         || fail "postgres 未就绪：$pg_health"
