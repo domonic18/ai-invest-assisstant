@@ -70,7 +70,6 @@ export function ModelFormModal({
           baseUrl: editing.baseUrl,
           modelName: editing.modelName,
           apiKey: '',
-          isDefault: editing.isDefault,
           isActive: editing.isActive,
           purpose: editing.purpose,
           vision: capabilities.vision === true,
@@ -82,7 +81,6 @@ export function ModelFormModal({
           protocol: 'openai',
           baseUrl: LLM_PROVIDER_PRESETS.deepseek.baseUrl,
           isActive: true,
-          isDefault: false,
           purpose: 'chat',
           vision: false,
         })
@@ -194,17 +192,6 @@ export function ModelFormModal({
         >
           <Select options={protocolOptions} disabled={protocolLocked} onChange={handleProtocolChange} />
         </Form.Item>
-
-        {currentPurpose === 'chat' && (
-          <Form.Item
-            label="设为默认"
-            name="isDefault"
-            valuePropName="checked"
-            extra="未显式指定模型的 AI 调用走该条目（仅对话/分析用途参与默认解析）"
-          >
-            <Switch />
-          </Form.Item>
-        )}
 
         {(currentPurpose === 'chat' || currentPurpose === 'vision') && (
           <Form.Item

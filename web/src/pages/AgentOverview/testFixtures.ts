@@ -10,6 +10,7 @@ export function makeOverviewItem(
       name: '短线猎手',
       tagline: '',
       llmConfigId: null,
+      llmBackupConfigId: null,
       methodologySourceId: null,
       riskMaxPositionPct: 20,
       riskMaxTotalPct: 60,

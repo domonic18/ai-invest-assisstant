@@ -6,7 +6,6 @@ from app.services.admin.llm_config_service import (
     LLMConfigNotConfiguredError,
     LLMConfigService,
     ResolvedLLMConfig,
-    resolve_default_llm,
 )
 from app.services.admin.news import AdminNewsService
 from app.services.admin.reports import AdminReportService
@@ -25,5 +24,4 @@ __all__ = [
     "LLMConfigNotConfiguredError",
     "LLMConfigService",
     "ResolvedLLMConfig",
-    "resolve_default_llm",
 ]

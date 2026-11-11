@@ -47,6 +47,7 @@ def _row(**overrides: object) -> SimpleNamespace:
         "name": "短线猎手",
         "tagline": "日内强势股猎手",
         "llm_config_id": None,
+        "llm_backup_config_id": None,
         "methodology_source_id": None,
         "risk_max_position_pct": 20.0,
         "risk_max_total_pct": 80.0,

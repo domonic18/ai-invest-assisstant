@@ -1,6 +1,7 @@
 """助手运行（run）端点：流式输出、取消、状态与历史。"""
 
 import asyncio
+import time
 import uuid as uuid_mod
 from collections.abc import AsyncIterator
 from typing import Annotated, Any, cast
@@ -8,7 +9,8 @@ from typing import Annotated, Any, cast
 import structlog
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
-from langchain_core.messages import HumanMessage, ToolMessage
+from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
+from langgraph.errors import GraphRecursionError
 from langgraph.types import Command
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -18,6 +20,7 @@ from app.agent.runtime.trading_agent import get_trading_agent
 from app.api.v1.assistant.page_context import _with_page_context
 from app.api.v1.assistant.threads import _require_thread
 from app.constants.pagination import DEFAULT_HISTORY_LIMIT, MAX_HISTORY_LIMIT
+from app.core.config import get_settings
 from app.core.exceptions import (
     AppError,
     ForbiddenError,
@@ -150,19 +153,22 @@ async def stream_run(
     if data.input is not None and not messages_in:
         raise UnprocessableEntityError("input.messages 不能为空")
 
-    lc_input: dict[str, Any] | None = None
     for message in messages_in:
-        if message.get("type") != "human":
-            raise UnprocessableEntityError("仅接受 human 类型输入消息")
+        if message.get("type") not in ("human", "tool"):
+            raise UnprocessableEntityError("仅接受 human 与 tool（工具取消回执）类型输入消息")
     page_context = (data.metadata or {}).get("page_context")
     custom_lines = (
         await AssistantService(session).custom_skill_index_lines(user.id)
         if messages_in and (thread.agent_type or "assistant") == "assistant"
         else []
     )
-    lc_input = (
-        {
-            "messages": [
+    # assistant-ui 取消上一 run 中断在 tool call 中间时，会自动补发 tool 回执
+    # （tool_use/tool_result 协议要求成对）；须回放为 ToolMessage，否则 422 →
+    # langgraph-sdk 流前错误静默结束 → 线程假死（2026-11-10 恢复失败事故）
+    lc_messages: list[HumanMessage | ToolMessage] = []
+    for m in messages_in:
+        if m.get("type") == "human":
+            lc_messages.append(
                 HumanMessage(
                     content=_with_page_context(
                         _with_custom_skills(m.get("content", ""), custom_lines),
@@ -170,12 +176,20 @@ async def stream_run(
                     ),
                     id=m.get("id"),
                 )
-                for m in messages_in
-            ]
-        }
-        if messages_in
-        else None
-    )
+            )
+        else:
+            tool_call_id = m.get("tool_call_id")
+            if not tool_call_id:
+                raise UnprocessableEntityError("tool 消息缺少 tool_call_id")
+            lc_messages.append(
+                ToolMessage(
+                    content=m.get("content") or "",
+                    tool_call_id=str(tool_call_id),
+                    name=m.get("name"),
+                    status=m.get("status") or "error",
+                )
+            )
+    lc_input: dict[str, Any] | None = {"messages": lc_messages} if lc_messages else None
 
     # langgraph 1.x：resume 时 Command 直接作为 astream 的 input 传入
     stream_input: Any = None
@@ -196,8 +210,6 @@ async def stream_run(
     try:
         await quota_service.precheck(user.id)
     except QuotaExhaustedError as exc:
-        from langchain_core.messages import AIMessage
-
         # except 块结束即删除 exc，闭包须捕获普通变量
         refusal_message = exc.message
 
@@ -224,6 +236,16 @@ async def stream_run(
     use_kb = bool((data.metadata or {}).get("use_kb", True))
     agent = await _resolve_agent(session, user, thread, use_kb=use_kb)
 
+    settings = get_settings()
+    budget_notice = AIMessage(
+        content=(
+            f"已达到单次运行执行预算上限（{settings.assistant_run_max_steps} 步 / "
+            f"{int(settings.assistant_run_max_seconds // 60)} 分钟），本次运行到此暂停。"
+            "已完成的工作已保存，发送「继续」将从暂停处继续。"
+        ),
+        id=f"budget-{run_id}",
+    )
+
     async def event_stream() -> AsyncIterator[str]:
         task = asyncio.current_task()
         if task is not None:
@@ -233,12 +255,24 @@ async def stream_run(
                 yield wire.sse_event(
                     "metadata", {"run_id": run_id, "thread_id": thread_id}
                 )
-                async for namespaces, mode, payload in agent.astream(
+                astream = agent.astream(
                     stream_input,
-                    {"configurable": configurable},
+                    # 调用点 config 覆盖 deepagents 内置 recursion_limit=9999
+                    # （RunnableBinding merge_configs 后写者胜）
+                    {
+                        "configurable": configurable,
+                        "recursion_limit": settings.assistant_run_max_steps,
+                    },
                     stream_mode=["messages", "updates", "custom"],
                     subgraphs=True,
-                ):
+                )
+                deadline = time.monotonic() + settings.assistant_run_max_seconds
+                time_budget_exhausted = False
+                async for namespaces, mode, payload in astream:
+                    # 墙钟预算：与步数上限互补——慢模型步步合法但累计超时同样收尾
+                    if time.monotonic() > deadline:
+                        time_budget_exhausted = True
+                        break
                     # 根图事件全量透传；子图只透传节点完成快照（updates|ns），
                     # 子代理 token 流不透传以控制事件量
                     if mode == "messages":
@@ -272,6 +306,20 @@ async def stream_run(
                         if namespaces:
                             continue
                         yield wire.sse_event("custom", wire.jsonable(payload))
+                if time_budget_exhausted:
+                    # 优雅收尾：关闭生成器即取消 graph 任务，checkpoint 保留
+                    # 最后完成的 superstep，用户发「继续」即从该点续跑
+                    await astream.aclose()
+                    logger.info(
+                        "assistant_run_budget_exhausted",
+                        thread_id=thread_id,
+                        run_id=run_id,
+                        reason="time",
+                        max_seconds=settings.assistant_run_max_seconds,
+                    )
+                    yield wire.sse_event(
+                        "messages", [wire.serialize_message(budget_notice), {}]
+                    )
                 yield wire.sse_event("end", {})
             except asyncio.CancelledError:
                 logger.info("assistant_run_cancelled", thread_id=thread_id, run_id=run_id)
@@ -283,6 +331,19 @@ async def stream_run(
                 yield wire.sse_event(
                     "error", {"error": exc.message, "status_code": exc.status_code}
                 )
+            except GraphRecursionError:
+                # 步数预算耗尽：checkpoint 已保留至最后完成的 superstep，同样可续跑
+                logger.info(
+                    "assistant_run_budget_exhausted",
+                    thread_id=thread_id,
+                    run_id=run_id,
+                    reason="steps",
+                    max_steps=settings.assistant_run_max_steps,
+                )
+                yield wire.sse_event(
+                    "messages", [wire.serialize_message(budget_notice), {}]
+                )
+                yield wire.sse_event("end", {})
             except Exception as exc:  # noqa: BLE001
                 logger.error(
                     "assistant_run_failed", thread_id=thread_id, run_id=run_id, error=str(exc)

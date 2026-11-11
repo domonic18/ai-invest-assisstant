@@ -14,6 +14,10 @@ export interface ApiKbSettingsResponse {
   cleanModelId: number | null
   extractModelId: number | null
   visionModelId: number | null
+  embeddingBackupId: number | null
+  cleanBackupId: number | null
+  extractBackupId: number | null
+  visionBackupId: number | null
   authorizedUserIds: number[]
   updatedAt: string | null
 }
@@ -30,6 +34,10 @@ export interface ApiKbSettingsUpdateRequest {
   cleanModelId?: number | null
   extractModelId?: number | null
   visionModelId?: number | null
+  embeddingBackupId?: number | null
+  cleanBackupId?: number | null
+  extractBackupId?: number | null
+  visionBackupId?: number | null
   authorizedUserIds?: number[]
 }
 

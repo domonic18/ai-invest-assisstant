@@ -46,7 +46,7 @@ class TestReviewLatencyAnchor:
                 mt.index_quotation_service, "get_index_quotes", AsyncMock(return_value=[])
             ),
             patch(
-                "app.services.admin.llm_config_service.resolve_default_llm",
+                "app.services.admin.llm_task_binding_service.resolve_task_llm",
                 AsyncMock(return_value=cfg),
             ),
             patch(
@@ -70,7 +70,7 @@ class TestReviewLatencyAnchor:
         cfg, persist_mock = _review_persist_mocks()
         with (
             patch(
-                "app.services.admin.llm_config_service.resolve_default_llm",
+                "app.services.admin.llm_task_binding_service.resolve_task_llm",
                 AsyncMock(return_value=cfg),
             ),
             patch(
@@ -93,7 +93,7 @@ class TestReviewLatencyAnchor:
         with (
             patch.object(mt, "time", fake_time),
             patch(
-                "app.services.admin.llm_config_service.resolve_default_llm",
+                "app.services.admin.llm_task_binding_service.resolve_task_llm",
                 AsyncMock(return_value=cfg),
             ),
             patch(
@@ -140,7 +140,7 @@ class TestPersistLimitUpAttributionTool:
         with (
             patch.object(mt.trade_calendar_service, "is_trading_day", AsyncMock(return_value=True)),
             patch(
-                "app.services.admin.llm_config_service.resolve_default_llm",
+                "app.services.admin.llm_task_binding_service.resolve_task_llm",
                 AsyncMock(return_value=cfg),
             ),
             patch(
@@ -197,7 +197,7 @@ class TestPersistLimitUpAttributionTool:
         with (
             patch.object(mt.trade_calendar_service, "is_trading_day", AsyncMock(return_value=True)),
             patch(
-                "app.services.admin.llm_config_service.resolve_default_llm",
+                "app.services.admin.llm_task_binding_service.resolve_task_llm",
                 AsyncMock(return_value=cfg),
             ),
             patch(

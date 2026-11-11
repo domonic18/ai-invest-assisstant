@@ -16,10 +16,8 @@ function fixture(overrides: Partial<LLMConfig> = {}): LLMConfig {
     baseUrl: 'https://api.deepseek.com',
     modelName: 'deepseek-chat',
     apiKeyMasked: 'sk-***',
-    isDefault: true,
     isActive: true,
     purpose: 'chat',
-    backupConfigId: null,
     degradedUntil: null,
     extra: {},
     lastTestedAt: null,
@@ -148,8 +146,8 @@ describe('ModelFormModal', () => {
   })
 
   it('用途切到视觉识别：视觉能力开关自动开启', () => {
-    // isDefault/isActive 均关，保证切 vision 前无任何勾选态开关
-    setup(fixture({ isDefault: false, isActive: false }))
+    // isActive 关闭保证切 vision 前无任何勾选态开关
+    setup(fixture({ isActive: false }))
 
     expect(screen.getByText('视觉能力')).toBeInTheDocument() // chat 用途本就显示该开关
     expect(document.querySelector('.ant-switch-checked')).toBeNull()

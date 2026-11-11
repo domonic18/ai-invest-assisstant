@@ -2,10 +2,10 @@
 
 四类管线模型角色（清洗/抽取 = chat、视觉 = vision 用途或视觉能力条目、
 嵌入 = embedding）全部落 ``llm_config`` 条目，``kb_settings`` 持槽位引用
-——代码不硬编码模型名。
+（主 + 可选备用）——代码不硬编码模型名。主模型冷却/失效时解析层切备用，
+主备皆不可用显式失败（管线任务 FAILED 归因而非静默走错模型）。
 校验双侧生效：保存时校验槽位条目存在且匹配角色要求；读取解析时再次校验
-（条目被停用/改用途/去能力后立即显式失败，管线任务 FAILED 归因而非静默走
-错模型）。
+（条目被停用/改用途/去能力后立即显式失败）。
 """
 
 from typing import Literal
@@ -18,17 +18,18 @@ from app.core.exceptions import NotFoundError, UnprocessableEntityError
 from app.models.kb import KbSettings
 from app.models.llm_config import LLMConfig
 from app.schemas.kb import KbSettingsResponse, KbSettingsUpdateRequest
+from app.services.admin.llm_failover import resolve_healthy
 
 logger = structlog.get_logger(__name__)
 
 KbModelRole = Literal["embedding", "clean", "extract", "vision"]
 
-#: 角色 → (kb_settings 字段名, 要求的 llm_config.purpose)
-ROLE_REQUIREMENTS: dict[KbModelRole, tuple[str, str]] = {
-    "embedding": ("embedding_config_id", "embedding"),
-    "clean": ("clean_model_id", "chat"),
-    "extract": ("extract_model_id", "chat"),
-    "vision": ("vision_model_id", "vision"),
+#: 角色 → (主字段名, 要求的 llm_config.purpose, 备用字段名)
+ROLE_REQUIREMENTS: dict[KbModelRole, tuple[str, str, str]] = {
+    "embedding": ("embedding_config_id", "embedding", "embedding_backup_id"),
+    "clean": ("clean_model_id", "chat", "clean_backup_id"),
+    "extract": ("extract_model_id", "chat", "extract_backup_id"),
+    "vision": ("vision_model_id", "vision", "vision_backup_id"),
 }
 
 
@@ -54,6 +55,10 @@ def _to_view(row: KbSettings) -> KbSettingsResponse:
         clean_model_id=row.clean_model_id,
         extract_model_id=row.extract_model_id,
         vision_model_id=row.vision_model_id,
+        embedding_backup_id=row.embedding_backup_id,
+        clean_backup_id=row.clean_backup_id,
+        extract_backup_id=row.extract_backup_id,
+        vision_backup_id=row.vision_backup_id,
         authorized_user_ids=list(row.authorized_user_ids or []),
         updated_at=row.updated_at,
     )
@@ -87,7 +92,7 @@ def _role_rejection_detail(role: KbModelRole, config_id: int, row: LLMConfig) ->
             "（vision 用途，或对话模型勾选「视觉能力」），"
             f"配置 {config_id}（{row.name}）用途为 {row.purpose} 且未开启视觉能力"
         )
-    _field, expected_purpose = ROLE_REQUIREMENTS[role]
+    _field, expected_purpose, _backup = ROLE_REQUIREMENTS[role]
     return (
         f"角色 {role} 要求用途为 {expected_purpose} 的模型条目，"
         f"配置 {config_id}（{row.name}）用途为 {row.purpose}"
@@ -113,22 +118,43 @@ async def update_settings(
     admin_id: int,
     data: KbSettingsUpdateRequest,
 ) -> KbSettingsResponse:
-    """保存设置；提交的模型角色槽位逐项校验角色要求（含视觉能力语义）。
+    """保存设置；提交的模型角色槽位（主/备）逐项校验角色要求与备≠主。
 
     Raises:
         NotFoundError: 槽位指向的 LLM 配置不存在。
-        UnprocessableEntityError: 槽位条目停用或不满足角色要求。
+        UnprocessableEntityError: 槽位条目停用、不满足角色要求或备用等于主。
     """
     row = await get_settings_row(session)
     payload = data.model_dump(exclude_unset=True)
 
-    role_fields = {field for field, _ in ROLE_REQUIREMENTS.values()}
+    role_fields = {field for field, _, _ in ROLE_REQUIREMENTS.values()}
+    role_of_field = {
+        field: role for role, (field, _, _) in ROLE_REQUIREMENTS.items()
+    }
     for field_name in role_fields & payload.keys():
         config_id = payload[field_name]
-        role = next(r for r, (f, _) in ROLE_REQUIREMENTS.items() if f == field_name)
         if config_id is not None:
-            await _validate_role_slot(session, role=role, config_id=config_id)
+            await _validate_role_slot(
+                session, role=role_of_field[field_name], config_id=config_id
+            )
         setattr(row, field_name, config_id)
+
+    backup_fields = {backup for _, _, backup in ROLE_REQUIREMENTS.values()}
+    for field_name in backup_fields & payload.keys():
+        backup_id = payload[field_name]
+        if backup_id is not None:
+            role = next(
+                r for r, (_f, _p, backup) in ROLE_REQUIREMENTS.items()
+                if backup == field_name
+            )
+            await _validate_role_slot(session, role=role, config_id=backup_id)
+            primary_field = ROLE_REQUIREMENTS[role][0]
+            primary_id = getattr(row, primary_field)
+            if primary_id is not None and backup_id == primary_id:
+                raise UnprocessableEntityError(
+                    f"角色 {role} 的备用模型不能与主模型相同"
+                )
+        setattr(row, field_name, backup_id)
 
     for field_name in ("hotwords", "segment_max_seconds", "asr_concurrency",
                        "top_k", "auto_approve_points", "unit_prices",
@@ -146,23 +172,39 @@ async def update_settings(
 async def resolve_role_model(
     session: AsyncSession, role: KbModelRole
 ) -> LLMConfig:
-    """解析角色槽位指向的 llm_config 条目（管线调用前统一入口）。
+    """解析角色槽位最终生效的条目：主健康且有效走主，否则备用（管线统一入口）。
+
+    健康门内化（主冷却切备用引用），管线消费方拿到的即最终条目，
+    无需各自再过 ``resolve_healthy``。
 
     Raises:
-        UnprocessableEntityError: 角色未配置，或条目停用/用途能力被改为不匹配
-            （保存后再变更的场景，读取侧二次校验兜底）。
+        UnprocessableEntityError: 角色未配置，或主备皆不可用
+            （不存在/停用/用途能力不匹配——保存后再变更的场景，
+            读取侧二次校验兜底）。
     """
     row = await get_settings_row(session)
-    field_name, _expected_purpose = ROLE_REQUIREMENTS[role]
+    field_name, _expected_purpose, backup_field = ROLE_REQUIREMENTS[role]
     config_id: int | None = getattr(row, field_name)
+    backup_id: int | None = getattr(row, backup_field)
     if config_id is None:
         raise UnprocessableEntityError(
             f"知识库设置未配置 {role} 模型角色，请在后台「知识库设置」中选择"
         )
     config = await session.get(LLMConfig, config_id)
     if config is None or not config.is_active or not _role_accepts(role, config):
-        raise UnprocessableEntityError(
-            f"角色 {role} 指向的 LLM 配置 {config_id} 不可用"
-            "（不存在/停用/不满足角色要求），请检查知识库设置"
+        backup = None
+        if backup_id is not None:
+            backup = await session.get(LLMConfig, backup_id)
+        if backup is None or not backup.is_active or not _role_accepts(role, backup):
+            raise UnprocessableEntityError(
+                f"角色 {role} 指向的 LLM 配置 {config_id} 不可用"
+                "（不存在/停用/不满足角色要求），请检查知识库设置"
+            )
+        logger.warning(
+            "kb_role_failover_primary_invalid",
+            role=role,
+            config_id=config_id,
+            backup_config_id=backup_id,
         )
-    return config
+        return backup
+    return await resolve_healthy(session, config, backup_id)

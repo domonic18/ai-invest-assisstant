@@ -40,13 +40,6 @@ export async function deleteLLMConfig(id: number): Promise<void> {
   await apiClient.delete(ENDPOINTS.admin.llmConfig(id))
 }
 
-export async function setDefaultLLMConfig(id: number): Promise<ApiLLMConfigResponse> {
-  const response = await apiClient.post<ApiLLMConfigResponse>(
-    ENDPOINTS.admin.setDefaultLLMConfig(id),
-  )
-  return response.data
-}
-
 export async function testLLMConfig(id: number): Promise<ApiLLMConfigTestResponse> {
   const response = await apiClient.post<ApiLLMConfigTestResponse>(
     ENDPOINTS.admin.testLLMConfig(id),

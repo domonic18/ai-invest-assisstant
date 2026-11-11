@@ -237,6 +237,7 @@ class TradingAgentProfileResponse(CamelModel):
     name: str
     tagline: str
     llm_config_id: int | None = None
+    llm_backup_config_id: int | None = None
     methodology_source_id: int | None = None
     risk_max_position_pct: float
     risk_max_total_pct: float
@@ -324,6 +325,7 @@ class TradingAgentCreateRequest(CamelModel):
     plan_cadence: Literal["daily", "weekly", "monthly"] | None = None
     review_cadence: Literal["daily", "weekly", "monthly"] | None = None
     llm_config_id: int | None = None
+    llm_backup_config_id: int | None = None
     methodology_source_id: int | None = None
 
 
@@ -424,7 +426,8 @@ class AgentSkillFilesResponse(CamelModel):
 class TradingAgentProfileUpdateRequest(CamelModel):
     """更新交易 Agent 注册信息（未提供的字段不变；任意状态可写，D28）。
 
-    llm_config_id 空 = 平台默认 chat 模型，methodology_source_id 空 = 未启用
+    llm_config_id 空 = 跟随助手对话槽位，llm_backup_config_id 空 = 无备用
+    （主模型冷却/失效时任务失败可见），methodology_source_id 空 = 未启用
     方法论基座注入。status 开放 active/disabled 切换（停用 = 总览隐藏 + 不参与
     调度）；'planned' 仅为种子初始态，API 不可设置。prompt_id 开放换绑（D30，
     须在模板清单内）；agent_key/sort_order 不开放更新。
@@ -434,6 +437,7 @@ class TradingAgentProfileUpdateRequest(CamelModel):
     tagline: str | None = None
     prompt_id: str | None = None
     llm_config_id: int | None = None
+    llm_backup_config_id: int | None = None
     methodology_source_id: int | None = None
     risk_max_position_pct: float | None = Field(default=None, ge=0, le=100)
     risk_max_total_pct: float | None = Field(default=None, ge=0, le=100)

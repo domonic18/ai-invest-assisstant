@@ -56,6 +56,23 @@ class TestBuildLangChainModel:
         model = build_langchain_model(_cfg("anthropic"))
         assert model.default_request_timeout == get_settings().llm_http_read_timeout
 
+    def test_read_timeout_override_applies_to_both_protocols(self) -> None:
+        """出口专属读超时覆盖全局值（助手出口兜「慢但成功」盲区），connect 不受影响。"""
+        from langchain_anthropic import ChatAnthropic
+        from langchain_openai import ChatOpenAI
+
+        openai_model = build_langchain_model(_cfg("openai"), read_timeout=240.0)
+        assert isinstance(openai_model, ChatOpenAI)
+        assert isinstance(openai_model.request_timeout, httpx.Timeout)
+        assert openai_model.request_timeout.read == 240.0
+        assert (
+            openai_model.request_timeout.connect == get_settings().llm_http_connect_timeout
+        )
+
+        anthropic_model = build_langchain_model(_cfg("anthropic"), read_timeout=240.0)
+        assert isinstance(anthropic_model, ChatAnthropic)
+        assert anthropic_model.default_request_timeout == 240.0
+
     def test_anthropic_default_budget_leaves_thinking_headroom(self) -> None:
         """默认预算必须给足：thinking 与输出共享，8192 会被长思考精确烧满
         致最终回复截断（kimi k3.1-pro 复盘事故），回归时在此显式失败。"""

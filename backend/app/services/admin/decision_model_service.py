@@ -1,9 +1,10 @@
 """判断模型（System One，D23）解析与 failover 编排。
 
 调用面给批次 8a L1 与未来复用方：``ask_decision(session, state=…, questions=…)``
-——解析 purpose=decision 配置（健康门）→ 构造 :class:`DecisionModelClient` → 调用；
-额度/限流/过载类失败（``DecisionModelUnavailableError``）标记冷却后重解析切备用
-当次重试一次（run_structured failover 块同型）。降级契约（advisory）：全部异常由
+——经任务槽位 ``decision`` 解析配置（主备绑定 + 健康门）→ 构造
+:class:`DecisionModelClient` → 调用；额度/限流/过载类失败
+（``DecisionModelUnavailableError``）标记冷却后重解析切备用当次重试一次
+（run_structured failover 块同型）。降级契约（advisory）：全部异常由
 调用方捕获降级纯 L0，本模块不吞不译。
 """
 
@@ -25,11 +26,11 @@ from app.core.decision_model import (
     SystemOneAdapter,
     thresholds_from_extra,
 )
-from app.models.llm_config import LLMConfig
-from app.repositories.admin.llm_config_repository import LLMConfigRepository
-from app.services.admin.llm_config_service import LLMConfigNotConfiguredError
-from app.services.admin.llm_failover import mark_unhealthy, resolve_healthy
-from app.utils.crypto import decrypt_token
+from app.services.admin.llm_config_service import (
+    ResolvedLLMConfig,
+)
+from app.services.admin.llm_failover import mark_unhealthy
+from app.services.admin.llm_task_binding_service import resolve_task_llm
 
 logger = structlog.get_logger(__name__)
 
@@ -63,33 +64,26 @@ def _timeout_from_extra(extra: dict[str, Any]) -> float:
     return timeout
 
 
-def _resolved_from_row(row: LLMConfig) -> ResolvedDecisionConfig:
-    """ORM 行 → 解密配置（健康门之后调用）。"""
-    extra = row.extra or {}
+def _resolved_from_config(resolved: ResolvedLLMConfig) -> ResolvedDecisionConfig:
+    """槽位解析结果 → 判断配置（健康门之后调用）。"""
     return ResolvedDecisionConfig(
-        config_id=row.id,
-        name=row.name,
-        model_name=row.model_name,
-        base_url=row.base_url,
-        api_key=decrypt_token(row.api_key_encrypted),
-        timeout_seconds=_timeout_from_extra(extra),
-        thresholds=thresholds_from_extra(extra),
+        config_id=resolved.config_id,
+        name=resolved.name,
+        model_name=resolved.model_name,
+        base_url=resolved.base_url,
+        api_key=resolved.api_key,
+        timeout_seconds=_timeout_from_extra(resolved.extra),
+        thresholds=thresholds_from_extra(resolved.extra),
     )
 
 
 async def resolve_decision_llm(session: AsyncSession) -> ResolvedDecisionConfig:
-    """解析判断模型配置：首条启用行 + 健康门（冷却期内自动切备用）。
+    """解析判断模型：任务槽位 ``decision``（主备绑定 + 健康门切备）。
 
     Raises:
-        LLMConfigNotConfiguredError: 不存在启用的 decision 配置时抛出。
+        LLMConfigNotConfiguredError: 槽位未绑定或主备皆不可用时抛出。
     """
-    rows = await LLMConfigRepository(session).list_decision_active()
-    if not rows:
-        raise LLMConfigNotConfiguredError(
-            "未配置判断模型，请在后台「模型配置」新增用途为「结构化判断」的条目"
-        )
-    row = await resolve_healthy(session, rows[0])
-    return _resolved_from_row(row)
+    return _resolved_from_config(await resolve_task_llm(session, "decision"))
 
 
 def build_decision_client(cfg: ResolvedDecisionConfig) -> DecisionModelClient:

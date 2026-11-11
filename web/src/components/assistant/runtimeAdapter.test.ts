@@ -6,7 +6,9 @@
  *   长期静默失效（问题卡不渲染）；
  * - custom 与 updates 双通道会送达同一标记，分派必须幂等。
  */
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+import type { Client } from '@langchain/langgraph-sdk'
+import type { LangChainMessage } from '@assistant-ui/react-langgraph'
 
 import { useAssistantStore } from '@/stores/assistant'
 
@@ -101,5 +103,56 @@ describe('runtimeAdapter 事件契约', () => {
     expect(typeof adapter.threadListAdapter.initialize).toBe('function')
     expect(typeof adapter.eventHandlers.onUpdates).toBe('function')
     expect(typeof adapter.eventHandlers.onCustomEvent).toBe('function')
+  })
+})
+
+describe('runtimeAdapter stream 失败可见性', () => {
+  const collect = async (
+    client: Client,
+    abortSignal?: AbortSignal,
+  ): Promise<Array<{ event: string; data: unknown }>> => {
+    const adapter = createAssistantRuntimeAdapter(() => client)
+    const chunks: Array<{ event: string; data: unknown }> = []
+    const config = {
+      initialize: async () => ({ externalId: 't1', remoteId: 't1' }),
+      abortSignal,
+    }
+    const iterator = await adapter.stream(
+      [{ type: 'human', content: '继续' } as LangChainMessage],
+      config as never,
+    )
+    for await (const chunk of iterator) {
+      chunks.push(chunk as { event: string; data: unknown })
+    }
+    return chunks
+  }
+
+  it('流前错误（422/网络断）合成 AI 提示消息，不再静默假死', async () => {
+    const failClient = {
+      runs: {
+        stream: vi.fn().mockRejectedValue(
+          new Error('Request failed with status code 422'),
+        ),
+      },
+    } as unknown as Client
+
+    const chunks = await collect(failClient, new AbortController().signal)
+
+    expect(chunks).toHaveLength(1)
+    expect(chunks[0].event).toBe('messages')
+    const [message] = chunks[0].data as Array<{ type: string; content: string }>
+    expect(message.type).toBe('ai')
+    expect(message.content).toContain('422')
+    expect(message.content).toContain('重试')
+  })
+
+  it('用户主动中止（abort）原样上抛，不合成提示消息', async () => {
+    const controller = new AbortController()
+    controller.abort()
+    const failClient = {
+      runs: { stream: vi.fn().mockRejectedValue(new DOMException('Aborted', 'AbortError')) },
+    } as unknown as Client
+
+    await expect(collect(failClient, controller.signal)).rejects.toThrow('Aborted')
   })
 })

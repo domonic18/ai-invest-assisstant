@@ -1,37 +1,54 @@
 import { Alert, Button, Card, Form, Select, Typography, message } from 'antd'
 import { useEffect } from 'react'
-import type { AiTaskKey } from '@ai-invest/shared'
+import type { AiTaskKey, LlmPurpose } from '@ai-invest/shared'
 
 import { useLLMConfigs, useReplaceTaskBindings, useTaskBindings } from '@/hooks/useModelConfig'
 import type { ApiTaskBindingSlot, LLMConfig } from '@ai-invest/shared'
 
-type TaskBindingFormValues = Record<AiTaskKey, number | null>
-
-function toFormValues(slots: ApiTaskBindingSlot[]): TaskBindingFormValues {
-  return Object.fromEntries(slots.map((slot) => [slot.taskKey, slot.configId])) as TaskBindingFormValues
+interface TaskBindingSlotValue {
+  configId: number | null
+  backupConfigId: number | null
 }
 
-function TaskSlotSelect({
+type TaskBindingFormValues = Record<string, TaskBindingSlotValue>
+
+function toFormValues(slots: ApiTaskBindingSlot[]): TaskBindingFormValues {
+  return Object.fromEntries(
+    slots.map((slot) => [
+      slot.taskKey,
+      { configId: slot.configId, backupConfigId: slot.backupConfigId ?? null },
+    ]),
+  )
+}
+
+function TaskModelSelect({
   config,
+  purpose,
   value,
   onChange,
+  allowEmpty,
+  placeholder,
 }: {
   config: LLMConfig[]
+  purpose: LlmPurpose
   value: number | null | undefined
   onChange: (id: number | null) => void
+  allowEmpty: boolean
+  placeholder: string
 }) {
   const options = config
-    .filter((c) => c.purpose === 'chat' && c.isActive)
+    .filter((c) => c.purpose === purpose && c.isActive)
     .map((c) => ({ value: c.id, label: `${c.name}（${c.modelName}）` }))
   return (
     <Select
       value={value ?? undefined}
       onChange={(id) => onChange(id ?? null)}
+      onClear={() => onChange(null)}
       options={options}
-      allowClear
-      placeholder="跟随系统默认"
+      allowClear={allowEmpty}
+      placeholder={placeholder}
       style={{ width: '100%' }}
-      notFoundContent="暂无「chat」用途的启用条目，请先在「模型条目」中添加"
+      notFoundContent={`暂无「${purpose}」用途的启用条目，请先在「模型条目」中添加`}
     />
   )
 }
@@ -49,9 +66,11 @@ export function TaskBindingTab() {
   const handleSave = async (values: TaskBindingFormValues) => {
     try {
       await replaceMutation.mutateAsync({
-        bindings: Object.entries(values).map(([taskKey, configId]) => ({
+        bindings: Object.entries(values).map(([taskKey, slotValue]) => ({
           taskKey: taskKey as AiTaskKey,
-          configId: configId ?? null,
+          // 必填校验已保证主模型非空，这里的 as number 仅收窄表单值类型
+          configId: (slotValue?.configId ?? null) as number,
+          backupConfigId: slotValue?.backupConfigId ?? null,
         })),
       })
       message.success('任务模型绑定已保存')
@@ -73,21 +92,59 @@ export function TaskBindingTab() {
           type="info"
           showIcon
           style={{ marginBottom: 16 }}
-          message="定时 AI 任务默认共用系统默认模型（主模型+备用主备链）；此处可为单个任务绑定独立条目——轻任务绑廉价模型省 token，重任务绑强模型。绑定条目失效（停用/删除）后任务自动降级回系统默认；换绑后当日已生成的分析结果不会自动重算"
+          message="每槽位绑定主模型（必填）与可选备用；主模型额度耗尽或连接中断冷却期内自动切备用，冷却结束自动恢复；主备皆不可用时任务失败并告警。换绑后当日已生成的分析结果不会自动重算"
         />
         {(slots ?? []).map((slot: ApiTaskBindingSlot) => (
-          <Form.Item
-            key={slot.taskKey}
-            name={slot.taskKey}
-            label={<Typography.Text strong>{slot.label}</Typography.Text>}
-            extra={slot.description}
-          >
-            <TaskSlotSelect
-              config={configs ?? []}
-              value={form.getFieldValue(slot.taskKey)}
-              onChange={(id) => form.setFieldValue(slot.taskKey, id)}
-            />
-          </Form.Item>
+          <div key={slot.taskKey}>
+            <Typography.Text strong>{slot.label}</Typography.Text>
+            {slot.description && (
+              <Typography.Paragraph type="secondary" style={{ marginBottom: 4 }}>
+                {slot.description}
+              </Typography.Paragraph>
+            )}
+            <Form.Item
+              name={[slot.taskKey, 'configId']}
+              label="主模型"
+              rules={[{ required: true, message: '请选择主模型' }]}
+              style={{ marginBottom: 8 }}
+            >
+              <TaskModelSelect
+                config={configs ?? []}
+                purpose={slot.purpose}
+                value={form.getFieldValue([slot.taskKey, 'configId'])}
+                onChange={(id) => form.setFieldValue([slot.taskKey, 'configId'], id)}
+                allowEmpty={false}
+                placeholder="请选择主模型"
+              />
+            </Form.Item>
+            <Form.Item
+              name={[slot.taskKey, 'backupConfigId']}
+              label="备用模型"
+              extra={
+                slot.backupConfigName
+                  ? `当前备用：${slot.backupConfigName}（${slot.backupModelName ?? ''}）`
+                  : undefined
+              }
+            >
+              <TaskModelSelect
+                config={(configs ?? []).filter(
+                  (c) => c.id !== form.getFieldValue([slot.taskKey, 'configId']),
+                )}
+                purpose={slot.purpose}
+                value={form.getFieldValue([slot.taskKey, 'backupConfigId'])}
+                onChange={(id) => {
+                  if (id === form.getFieldValue([slot.taskKey, 'configId'])) {
+                    message.warning('备用模型不能与主模型相同')
+                    form.setFieldValue([slot.taskKey, 'backupConfigId'], null)
+                    return
+                  }
+                  form.setFieldValue([slot.taskKey, 'backupConfigId'], id)
+                }}
+                allowEmpty={true}
+                placeholder="可选备用"
+              />
+            </Form.Item>
+          </div>
         ))}
         <Button type="primary" htmlType="submit" loading={replaceMutation.isPending}>
           保存绑定

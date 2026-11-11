@@ -8,8 +8,10 @@ export interface TradingAgentProfile {
   agentKey: string
   name: string
   tagline: string
-  /** 绑定的 llm_config 条目 id；null = 平台默认 chat 模型。 */
+  /** 绑定的 llm_config 条目 id；null = 跟随助手对话槽位。 */
   llmConfigId: number | null
+  /** 绑定主条目的备用（主冷却/失效时切换）；null = 无备用。 */
+  llmBackupConfigId: number | null
   /** 方法论知识源（kb_source.id）；null = 未启用方法论基座注入。 */
   methodologySourceId: number | null
   /** 单票市值 ≤ 总资产 %。 */
@@ -46,6 +48,7 @@ export interface TradingAgentProfileUpdateRequest {
   /** 会话人设模板换绑（D30 开放更新；须在模板清单内）。 */
   promptId?: string
   llmConfigId?: number | null
+  llmBackupConfigId?: number | null
   methodologySourceId?: number | null
   riskMaxPositionPct?: number
   riskMaxTotalPct?: number
@@ -432,6 +435,7 @@ export interface TradingAgentCreateRequest {
   planCadence?: AgentCadence | null
   reviewCadence?: AgentCadence | null
   llmConfigId?: number | null
+  llmBackupConfigId?: number | null
   methodologySourceId?: number | null
 }
 

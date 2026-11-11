@@ -48,11 +48,12 @@ async def run_with_llm_failover(
     try:
         return await run(cfg), cfg
     except Exception as exc:
-        if not classify_llm_error(exc):
+        failure_class = classify_llm_error(exc)
+        if failure_class is None:
             raise
-        # 额度耗尽：主配置进冷却（callback 已标记，此处确定性补一次），
-        # 重新解析过健康门切备用后重跑
-        await mark_unhealthy(cfg.config_id)
+        # 额度/连接类失败：主配置进冷却（callback 已标记，此处确定性补一次，
+        # 冷却分档按失败类），重新解析过健康门切备用后重跑
+        await mark_unhealthy(cfg.config_id, failure_class=failure_class)
         retried = await resolve()
         if retried.config_id == cfg.config_id:
             raise

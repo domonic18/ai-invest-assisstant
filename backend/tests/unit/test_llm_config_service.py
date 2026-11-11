@@ -1,4 +1,4 @@
-"""LLM 配置服务契约测试（默认配置唯一性、凭证脱敏、连通性探测与主备引用）。"""
+"""LLM 配置服务契约测试（纯注册表：凭证脱敏、连通性探测、by-id 主备解析）。"""
 
 from types import SimpleNamespace
 from typing import Any
@@ -8,18 +8,16 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.core.database import Base
-from app.core.exceptions import UnprocessableEntityError
 from app.models.llm_config import LLMConfig
-from app.repositories.admin.llm_config_repository import LLMConfigRepository
 from app.schemas.llm_config import LLMConfigCreate, LLMConfigUpdate
 from app.services.admin import llm_config_service as llm_config_service_module
 from app.services.admin.llm_config_service import (
     LLMConfigNotConfiguredError,
+    LLMConfigNotFoundError,
     LLMConfigService,
-    resolve_default_llm,
+    resolve_llm_by_id,
     resolve_vision_llm,
 )
-from app.utils.crypto import encrypt_token
 
 pytestmark = pytest.mark.unit
 
@@ -61,6 +59,23 @@ async def session():
     await engine.dispose()
 
 
+async def _create_chat(session: AsyncSession, name: str, **kw: Any):
+    return await LLMConfigService(session).create_config(
+        LLMConfigCreate(
+            name=name,
+            provider="custom",
+            base_url="https://api.example.com/v1",
+            api_key=f"sk-{name}",
+            model_name=f"m-{name}",
+            **kw,
+        )
+    )
+
+
+async def _deactivate(session: AsyncSession, config_id: int) -> None:
+    await LLMConfigService(session).update_config(config_id, LLMConfigUpdate(is_active=False))
+
+
 async def test_create_config(session: AsyncSession) -> None:
     service = LLMConfigService(session)
     created = await service.create_config(
@@ -75,36 +90,6 @@ async def test_create_config(session: AsyncSession) -> None:
     assert created.id is not None
     assert created.name == "OpenAI GPT-4o"
     assert created.api_key_masked.startswith("sk-t")
-
-
-async def test_default_config_unique(session: AsyncSession) -> None:
-    service = LLMConfigService(session)
-    first = await service.create_config(
-        LLMConfigCreate(
-            name="First",
-            provider="openai",
-            base_url="https://api.openai.com/v1",
-            api_key="sk-first",
-            model_name="gpt-4o",
-            is_default=True,
-        )
-    )
-    assert first.is_default
-    second = await service.create_config(
-        LLMConfigCreate(
-            name="Second",
-            provider="openai",
-            base_url="https://api.openai.com/v1",
-            api_key="sk-second",
-            model_name="gpt-4o",
-            is_default=True,
-        )
-    )
-    assert second.is_default
-    configs = await service.list_configs()
-    defaults = [c for c in configs if c.is_default]
-    assert len(defaults) == 1
-    assert defaults[0].id == second.id
 
 
 async def test_list_configs_tolerates_undecryptable_key(session: AsyncSession) -> None:
@@ -130,56 +115,6 @@ async def test_list_configs_tolerates_undecryptable_key(session: AsyncSession) -
     ]
 
 
-async def test_resolve_default_raises_when_missing(session: AsyncSession) -> None:
-    with pytest.raises(LLMConfigNotConfiguredError):
-        await resolve_default_llm(session)
-
-
-async def test_resolve_default_returns_config(session: AsyncSession) -> None:
-    service = LLMConfigService(session)
-    await service.create_config(
-        LLMConfigCreate(
-            name="Default",
-            provider="openai",
-            base_url="https://api.openai.com/v1",
-            api_key="sk-default",
-            model_name="gpt-4o",
-            is_default=True,
-        )
-    )
-    resolved = await resolve_default_llm(session)
-    assert resolved.model_name == "gpt-4o"
-    assert resolved.api_key == "sk-default"
-
-
-async def test_delete_reassigns_default(session: AsyncSession) -> None:
-    service = LLMConfigService(session)
-    first = await service.create_config(
-        LLMConfigCreate(
-            name="First",
-            provider="openai",
-            base_url="https://api.openai.com/v1",
-            api_key="sk-first",
-            model_name="gpt-4o",
-            is_default=True,
-        )
-    )
-    second = await service.create_config(
-        LLMConfigCreate(
-            name="Second",
-            provider="openai",
-            base_url="https://api.openai.com/v1",
-            api_key="sk-second",
-            model_name="gpt-4o",
-        )
-    )
-    await service.delete_config(first.id)
-    configs = await service.list_configs()
-    defaults = [c for c in configs if c.is_default]
-    assert len(defaults) == 1
-    assert defaults[0].id == second.id
-
-
 async def test_update_without_api_key_does_not_change_key(session: AsyncSession) -> None:
     service = LLMConfigService(session)
     created = await service.create_config(
@@ -200,6 +135,9 @@ async def test_update_without_api_key_does_not_change_key(session: AsyncSession)
     assert updated.api_key_masked == created.api_key_masked
 
 
+# ---------- resolve_vision_llm（能力扫描解析） ----------
+
+
 async def test_resolve_vision_raises_when_missing(session: AsyncSession) -> None:
     service = LLMConfigService(session)
     await service.create_config(
@@ -209,7 +147,6 @@ async def test_resolve_vision_raises_when_missing(session: AsyncSession) -> None
             base_url="https://api.openai.com/v1",
             api_key="sk-text",
             model_name="gpt-4o",
-            is_default=True,
         )
     )
     with pytest.raises(LLMConfigNotConfiguredError):
@@ -220,12 +157,11 @@ async def test_resolve_vision_returns_marked_config(session: AsyncSession) -> No
     service = LLMConfigService(session)
     await service.create_config(
         LLMConfigCreate(
-            name="Text default",
+            name="Text only",
             provider="openai",
             base_url="https://api.openai.com/v1",
             api_key="sk-text",
             model_name="gpt-4o",
-            is_default=True,
         )
     )
     await service.create_config(
@@ -243,31 +179,99 @@ async def test_resolve_vision_returns_marked_config(session: AsyncSession) -> No
     assert resolved.api_key == "sk-vision"
 
 
-async def test_resolve_vision_prefers_default_among_marked(session: AsyncSession) -> None:
+async def test_resolve_vision_picks_first_marked_by_id(session: AsyncSession) -> None:
+    """多个标记视觉能力的条目：按注册表 id 序取首个（无默认语义）。"""
     service = LLMConfigService(session)
     await service.create_config(
         LLMConfigCreate(
-            name="Vision default",
+            name="Vision first",
             provider="zhipu",
             base_url="https://open.bigmodel.cn/api/paas/v4",
-            api_key="sk-vision-default",
+            api_key="sk-vision-first",
             model_name="glm-4v-plus",
-            is_default=True,
             extra={"capabilities": {"vision": True}},
         )
     )
     await service.create_config(
         LLMConfigCreate(
-            name="Vision backup",
+            name="Vision second",
             provider="zhipu",
             base_url="https://open.bigmodel.cn/api/paas/v4",
-            api_key="sk-vision-backup",
+            api_key="sk-vision-second",
             model_name="glm-4v-flash",
             extra={"capabilities": {"vision": True}},
         )
     )
     resolved = await resolve_vision_llm(session)
     assert resolved.model_name == "glm-4v-plus"
+
+
+# ---------- resolve_llm_by_id（显式条目 + 备用参数） ----------
+
+
+async def test_resolve_llm_by_id_returns_config(session: AsyncSession) -> None:
+    primary = await _create_chat(session, "Primary")
+    backup = await _create_chat(session, "Backup")
+    resolved = await resolve_llm_by_id(
+        session, primary.id, backup_config_id=backup.id
+    )
+    assert resolved.config_id == primary.id
+    assert resolved.model_name == "m-Primary"
+    assert resolved.api_key == "sk-Primary"
+    assert resolved.name == "Primary"
+    assert resolved.backup_config_id == backup.id
+
+
+async def test_resolve_llm_by_id_missing_without_backup_raises(
+    session: AsyncSession,
+) -> None:
+    with pytest.raises(LLMConfigNotFoundError, match="且无可用备用"):
+        await resolve_llm_by_id(session, 9999)
+
+
+async def test_resolve_llm_by_id_inactive_primary_falls_back_to_backup(
+    session: AsyncSession,
+) -> None:
+    """主条目停用/删除：切显式备用（选择点携带的引用）。"""
+    primary = await _create_chat(session, "Primary")
+    backup = await _create_chat(session, "Backup")
+    await _deactivate(session, primary.id)
+
+    resolved = await resolve_llm_by_id(
+        session, primary.id, backup_config_id=backup.id
+    )
+    assert resolved.config_id == backup.id
+    assert resolved.model_name == "m-Backup"
+
+    # 备用同时失效：fail loud
+    await _deactivate(session, backup.id)
+    with pytest.raises(LLMConfigNotFoundError, match="且无可用备用"):
+        await resolve_llm_by_id(session, primary.id, backup_config_id=backup.id)
+
+
+async def test_resolve_llm_by_id_unhealthy_primary_switches_to_backup(
+    session: AsyncSession,
+) -> None:
+    """主条目冷却期内：健康门切备用，过期自愈回主。"""
+    primary = await _create_chat(session, "Primary")
+    backup = await _create_chat(session, "Backup")
+
+    with patch(
+        "app.services.admin.llm_failover.is_unhealthy",
+        new=AsyncMock(return_value=True),
+    ):
+        resolved = await resolve_llm_by_id(
+            session, primary.id, backup_config_id=backup.id
+        )
+    assert resolved.config_id == backup.id
+
+    resolved_healthy = await resolve_llm_by_id(
+        session, primary.id, backup_config_id=backup.id
+    )
+    assert resolved_healthy.config_id == primary.id
+
+
+# ---------- 连通性探测（按用途分流） ----------
 
 
 def _stub_http(captured: dict[str, Any], *, status: int = 200, body: dict[str, Any] | None = None):
@@ -381,112 +385,7 @@ async def test_embedding_config_missing_vector_marks_failed(
     assert "缺少向量字段" in result.detail
 
 
-async def _create_chat(session: AsyncSession, name: str, **kw: Any):
-    return await LLMConfigService(session).create_config(
-        LLMConfigCreate(
-            name=name,
-            provider="custom",
-            base_url="https://api.example.com/v1",
-            api_key=f"sk-{name}",
-            model_name="m1",
-            **kw,
-        )
-    )
-
-
-async def test_backup_config_validation(session: AsyncSession) -> None:
-    """备用引用校验：同 purpose、非自身；显式置 null 可清除。"""
-    primary = await _create_chat(session, "Primary")
-    embed = await _create_chat(session, "Embed", purpose="embedding")
-    backup = await _create_chat(session, "Backup")
-    service = LLMConfigService(session)
-
-    with pytest.raises(UnprocessableEntityError):
-        await service.update_config(
-            primary.id, LLMConfigUpdate(backup_config_id=embed.id)
-        )
-    with pytest.raises(UnprocessableEntityError):
-        await service.update_config(
-            primary.id, LLMConfigUpdate(backup_config_id=primary.id)
-        )
-
-    updated = await service.update_config(
-        primary.id, LLMConfigUpdate(backup_config_id=backup.id)
-    )
-    assert updated.backup_config_id == backup.id
-
-    cleared = await service.update_config(
-        primary.id, LLMConfigUpdate(backup_config_id=None)
-    )
-    assert cleared.backup_config_id is None
-
-
-async def test_delete_clears_backup_references(session: AsyncSession) -> None:
-    """删除被引用的备用条目时清空反向引用，不留悬空 id。"""
-    primary = await _create_chat(session, "Primary")
-    backup = await _create_chat(session, "Backup")
-    service = LLMConfigService(session)
-    await service.update_config(primary.id, LLMConfigUpdate(backup_config_id=backup.id))
-
-    await service.delete_config(backup.id)
-
-    refreshed = await service.get_config(primary.id)
-    assert refreshed.backup_config_id is None
-
-
-async def test_resolve_default_switches_to_backup_when_unhealthy(
-    session: AsyncSession,
-) -> None:
-    """主配置处于冷却期时解析出口自动切到其备用条目。"""
-    primary = await _create_chat(session, "Primary", is_default=True)
-    backup = await _create_chat(session, "Backup")
-    await LLMConfigService(session).update_config(
-        primary.id, LLMConfigUpdate(backup_config_id=backup.id)
-    )
-
-    with patch(
-        "app.services.admin.llm_failover.is_unhealthy",
-        new=AsyncMock(return_value=True),
-    ):
-        resolved = await resolve_default_llm(session)
-
-    assert resolved.config_id == backup.id
-
-    resolved_healthy = await resolve_default_llm(session)
-    assert resolved_healthy.config_id == primary.id
-
-
-async def test_default_resolution_filters_non_chat_purpose(session: AsyncSession) -> None:
-    """decision 条目被置默认不得劫持 chat 解析（build_langchain_model 收到
-    systemone 协议会直接失败）——仓储层三入口的 purpose 边界钉死。"""
-    repo = LLMConfigRepository(session)
-    session.add(
-        LLMConfig(
-            name="Decision default",
-            provider="openrouter",
-            protocol="systemone",
-            base_url="https://openrouter.ai/api",
-            api_key_encrypted=encrypt_token("sk-decision"),
-            model_name="jev-latest",
-            is_default=True,
-            is_active=True,
-            purpose="decision",
-        )
-    )
-    await _create_chat(session, "Chat fallback")
-    await session.commit()
-
-    default = await repo.get_default_active()
-    assert default is None  # 唯一 default 行是 decision——chat 解析显式无配置而非被劫持
-
-    first_active = await repo.get_first_active()
-    assert first_active is not None
-    assert first_active.purpose == "chat"  # 默认删除兜底只回指 chat
-
-    decision_rows = await repo.list_decision_active()
-    assert len(decision_rows) == 1
-    assert decision_rows[0].purpose == "decision"
-    assert decision_rows[0].model_name == "jev-latest"
+# ---------- 用途与协议对偶归一 ----------
 
 
 async def test_purpose_protocol_normalization_on_create(session: AsyncSession) -> None:
@@ -540,21 +439,3 @@ async def test_embedding_purpose_forces_openai_protocol(session: AsyncSession) -
     )
     assert created.purpose == "embedding"
     assert created.protocol == "openai"
-
-
-async def test_set_default_rejects_non_chat(session: AsyncSession) -> None:
-    """set_default API 守卫：仅 chat 用途可设默认（get_default_active 只解析 chat）。"""
-    service = LLMConfigService(session)
-    created = await service.create_config(
-        LLMConfigCreate(
-            name="Decision",
-            provider="openrouter",
-            protocol="systemone",
-            base_url="https://openrouter.ai/api",
-            api_key="sk-or",
-            model_name="jev-latest",
-            purpose="decision",
-        )
-    )
-    with pytest.raises(UnprocessableEntityError, match="对话/分析"):
-        await service.set_default_config(created.id)

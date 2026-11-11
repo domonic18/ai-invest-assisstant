@@ -67,6 +67,39 @@ class TestAssistantAgent:
         assert get_cp.await_count == 1
 
     @pytest.mark.asyncio
+    async def test_agent_model_uses_assistant_read_timeout(self) -> None:
+        """助手出口专属读超时：流式相邻 chunk 间隔上限，兜「慢但成功」盲区
+        （超时 → 连接类冷却 → 切备用），区别于采集/结构化的全局 300s。"""
+        from langgraph.checkpoint.memory import MemorySaver
+
+        from app.agent.runtime import assistant_agent
+        from app.core.config import get_settings
+
+        captured: dict = {}
+        real_build = assistant_agent.build_langchain_model
+
+        def _spy_build(cfg, **kwargs):
+            captured.update(kwargs)
+            return real_build(cfg, **kwargs)
+
+        with (
+            patch("app.agent.tools.build_mcp_tools", AsyncMock(return_value=[])),
+            patch(
+                "app.agent.runtime.assistant_agent.get_checkpointer",
+                AsyncMock(return_value=MemorySaver()),
+            ),
+            patch(
+                "app.agent.runtime.assistant_agent.build_langchain_model",
+                side_effect=_spy_build,
+            ),
+        ):
+            await assistant_agent.get_assistant_agent(cfg=_resolved())
+
+        assert (
+            captured["read_timeout"] == get_settings().assistant_llm_read_timeout
+        )
+
+    @pytest.mark.asyncio
     async def test_byok_cfg_gets_dedicated_agent(self) -> None:
         """不同出口指纹（BYOK vs 系统默认）各得独立实例；同指纹命中缓存。"""
         from langgraph.checkpoint.memory import MemorySaver

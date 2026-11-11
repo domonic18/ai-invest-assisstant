@@ -196,7 +196,7 @@ async def test_embed_quota_failure_marks_unhealthy() -> None:
         )
         with pytest.raises(KbEmbeddingError):
             await client.embed(["a"])
-    p_mark.assert_awaited_once_with(3)
+    p_mark.assert_awaited_once_with(3, failure_class="quota")
 
     with (
         patch(

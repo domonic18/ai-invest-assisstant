@@ -7,7 +7,6 @@ import {
   fetchLLMConfigs,
   fetchTaskBindings,
   replaceTaskBindings,
-  setDefaultLLMConfig,
   testAsrConfig,
   testLLMConfig,
   updateAsrConfig,
@@ -56,14 +55,6 @@ export function useDeleteLLMConfig() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (id: number) => deleteLLMConfig(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: LLM_CONFIGS_KEY }),
-  })
-}
-
-export function useSetDefaultLLMConfig() {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: (id: number) => setDefaultLLMConfig(id),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: LLM_CONFIGS_KEY }),
   })
 }

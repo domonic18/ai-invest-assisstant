@@ -90,46 +90,66 @@ export function createAssistantRuntimeAdapter(
       }
     },
     stream: async function* (messages, config) {
-      const { externalId } = await config.initialize()
-      if (!externalId) throw new Error('线程尚未初始化')
-      const client = createClient()
-      const stream = await client.runs.stream(externalId, ASSISTANT_ID, {
-        input: messages.length ? { messages } : null,
-        command: config.command as never,
-        // 发送瞬间读取 window.location 与 store 快照（零订阅，实时反映当前
-        // 页面、?code= 与知识库开关；use_kb 缺省由后端按开启处理）
-        metadata: {
-          page_context: buildPageContext(window.location),
-          use_kb: useAssistantStore.getState().useKb,
-        },
-        checkpoint: config.checkpointId
-          ? {
-              checkpoint_id: config.checkpointId,
-              checkpoint_ns: '',
-              checkpoint_map: {},
+      try {
+        const { externalId } = await config.initialize()
+        if (!externalId) throw new Error('线程尚未初始化')
+        const client = createClient()
+        const stream = await client.runs.stream(externalId, ASSISTANT_ID, {
+          input: messages.length ? { messages } : null,
+          command: config.command as never,
+          // 发送瞬间读取 window.location 与 store 快照（零订阅，实时反映当前
+          // 页面、?code= 与知识库开关；use_kb 缺省由后端按开启处理）
+          metadata: {
+            page_context: buildPageContext(window.location),
+            use_kb: useAssistantStore.getState().useKb,
+          },
+          checkpoint: config.checkpointId
+            ? {
+                checkpoint_id: config.checkpointId,
+                checkpoint_ns: '',
+                checkpoint_map: {},
+              }
+            : undefined,
+          streamMode: ['messages', 'updates', 'custom'],
+          signal: config.abortSignal,
+        })
+        for await (const chunk of stream) {
+          // 配额耗尽错误帧追加引导文案（arch/07 §7.2：AI 拦截须指引配 Key/联系管理员）
+          if (chunk.event === 'error') {
+            const data = chunk.data as
+              | { error_code?: string; error?: string }
+              | undefined
+            if (data?.error_code === 'quota_exhausted') {
+              yield {
+                event: chunk.event,
+                data: {
+                  ...data,
+                  error: `${data.error ?? 'AI 配额已用尽'}（可前往「设置 → 我的模型」配置自有 API Key，或联系管理员追加配额）`,
+                },
+              }
+              continue
             }
-          : undefined,
-        streamMode: ['messages', 'updates', 'custom'],
-        signal: config.abortSignal,
-      })
-      for await (const chunk of stream) {
-        // 配额耗尽错误帧追加引导文案（arch/07 §7.2：AI 拦截须指引配 Key/联系管理员）
-        if (chunk.event === 'error') {
-          const data = chunk.data as
-            | { error_code?: string; error?: string }
-            | undefined
-          if (data?.error_code === 'quota_exhausted') {
-            yield {
-              event: chunk.event,
-              data: {
-                ...data,
-                error: `${data.error ?? 'AI 配额已用尽'}（可前往「设置 → 我的模型」配置自有 API Key，或联系管理员追加配额）`,
-              },
-            }
-            continue
           }
+          yield { event: chunk.event, data: chunk.data }
         }
-        yield { event: chunk.event, data: chunk.data }
+      } catch (error) {
+        // 用户主动停止走 abort 路径，由 SDK 上游静默处理，不视为失败
+        if (config.abortSignal?.aborted) throw error
+        // 流前错误（422/网络断/auth 失败）会被 langgraph-sdk 静默吞掉，
+        // 界面零反馈形似假死（2026-11-10「发继续没反应」事故）；合成一条
+        // AI 提示消息让用户直接在对话框看到失败原因
+        const detail = error instanceof Error ? error.message : String(error)
+        yield {
+          event: 'messages',
+          data: [
+            {
+              type: 'ai',
+              id: `stream-error-${Date.now()}`,
+              content: `AI 请求发送失败：${detail}。请检查网络后重试；若持续失败请联系管理员。`,
+            },
+            {},
+          ] as never,
+        }
       }
     },
     eventHandlers: {

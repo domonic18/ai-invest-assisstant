@@ -32,9 +32,9 @@ from app.core.config import get_settings
 from app.core.database import AsyncSessionLocal
 from app.services.admin.llm_config_service import (
     ResolvedLLMConfig,
-    resolve_default_llm,
     resolve_llm_by_id,
 )
+from app.services.admin.llm_task_binding_service import resolve_task_llm
 
 logger = structlog.get_logger(__name__)
 
@@ -87,12 +87,15 @@ async def _methodology_section(
 
 async def resolve_trading_llm(
     llm_config_id: int | None,
+    backup_config_id: int | None = None,
 ) -> ResolvedLLMConfig:
-    """解析交易 Agent 的模型出口：注册行绑定优先，空则平台默认 chat 模型。"""
+    """解析交易 Agent 的模型出口：注册行绑定主备优先，空则跟随助手对话槽位。"""
     async with AsyncSessionLocal() as session:
         if llm_config_id is not None:
-            return await resolve_llm_by_id(session, llm_config_id)
-        return await resolve_default_llm(session)
+            return await resolve_llm_by_id(
+                session, llm_config_id, backup_config_id=backup_config_id
+            )
+        return await resolve_task_llm(session, "assistant_chat")
 
 
 def _fingerprint(
@@ -144,13 +147,14 @@ async def get_trading_agent(
         row = await get_agent(session, agent_key)
         prompt_id = row.prompt_id
         llm_config_id = row.llm_config_id
+        llm_backup_config_id = row.llm_backup_config_id
         persona = (row.name, row.tagline)
         methodology_source_id, methodology_text = await _methodology_section(
             session, row.methodology_source_id
         )
 
     if cfg is None:
-        cfg = await resolve_trading_llm(llm_config_id)
+        cfg = await resolve_trading_llm(llm_config_id, llm_backup_config_id)
     fp = _fingerprint(agent_key, prompt_id, persona, cfg, methodology_source_id)
 
     async with _build_lock:

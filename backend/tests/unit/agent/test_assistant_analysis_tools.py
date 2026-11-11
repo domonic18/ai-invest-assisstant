@@ -36,7 +36,7 @@ class TestStockDailyAnalysisTool:
         }
         with (
             patch(
-                "app.services.admin.llm_config_service.resolve_default_llm",
+                "app.services.admin.llm_task_binding_service.resolve_task_llm",
                 AsyncMock(return_value=cfg),
             ),
             patch(
@@ -87,7 +87,7 @@ class TestStockDailyAnalysisTool:
         }
         with (
             patch(
-                "app.services.admin.llm_config_service.resolve_default_llm",
+                "app.services.admin.llm_task_binding_service.resolve_task_llm",
                 AsyncMock(return_value=cfg),
             ),
             patch(
