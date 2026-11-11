@@ -37,6 +37,7 @@ interface ConfigFormValues {
   planCadence: AgentCadence
   reviewCadence: AgentCadence
   llmConfigId?: number | null
+  llmBackupConfigId?: number | null
   riskMaxPositionPct: number
   riskMaxTotalPct: number
   riskMaxDailyOrders: number
@@ -59,6 +60,7 @@ export function AgentConfigPanel() {
         planCadence: config.planCadence,
         reviewCadence: config.reviewCadence,
         llmConfigId: config.llmConfigId ?? null,
+        llmBackupConfigId: config.llmBackupConfigId ?? null,
         riskMaxPositionPct: config.riskMaxPositionPct,
         riskMaxTotalPct: config.riskMaxTotalPct,
         riskMaxDailyOrders: config.riskMaxDailyOrders,
@@ -85,6 +87,7 @@ export function AgentConfigPanel() {
               planCadence: values.planCadence,
               reviewCadence: values.reviewCadence,
               llmConfigId: values.llmConfigId ?? null,
+              llmBackupConfigId: values.llmBackupConfigId ?? null,
               riskMaxPositionPct: values.riskMaxPositionPct,
               riskMaxTotalPct: values.riskMaxTotalPct,
               riskMaxDailyOrders: values.riskMaxDailyOrders,
@@ -118,14 +121,36 @@ export function AgentConfigPanel() {
             <Form.Item
               name="llmConfigId"
               label="对话模型"
-              extra="留空使用平台默认 chat 模型；仅列出启用中的 chat 用途配置"
+              extra="留空跟随助手对话槽位；仅列出启用中的 chat 用途配置"
               className="xl:col-span-2"
             >
               <Select
                 allowClear
                 loading={llmLoading}
-                placeholder="平台默认"
+                placeholder="跟随助手对话槽位"
                 options={llmOptions ?? []}
+              />
+            </Form.Item>
+            <Form.Item
+              name="llmBackupConfigId"
+              label="备用模型"
+              extra="主模型冷却/失效时切换；仅列出启用中的 chat 用途配置"
+              className="xl:col-span-2"
+            >
+              <Select
+                allowClear
+                loading={llmLoading}
+                placeholder="无备用"
+                options={(llmOptions ?? []).filter(
+                  (opt) => opt.value !== form.getFieldValue('llmConfigId'),
+                )}
+                onChange={(id) => {
+                  if (id === form.getFieldValue('llmConfigId')) {
+                    form.setFieldValue('llmBackupConfigId', null)
+                    return
+                  }
+                  form.setFieldValue('llmBackupConfigId', id ?? null)
+                }}
               />
             </Form.Item>
             <Form.Item

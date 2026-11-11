@@ -92,7 +92,7 @@ function AgentIntroCard({ profile }: { profile: TradingAgentProfile }) {
   const openPanel = useAssistantStore((state) => state.openPanel)
   const llmName = profile.llmConfigId
     ? llmOptions?.find((option) => option.value === profile.llmConfigId)?.label
-    : '平台默认模型'
+    : '跟随助手对话模型'
 
   return (
     <div className="flex shrink-0 flex-wrap items-center gap-x-5 gap-y-1.5 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-2.5">

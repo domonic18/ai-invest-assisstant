@@ -272,10 +272,8 @@ describe('mappers', () => {
       baseUrl: 'https://api.openai.com/v1',
       modelName: 'gpt-4o',
       apiKeyMasked: 'sk-te************************st',
-      isDefault: true,
       isActive: true,
       purpose: 'chat',
-      backupConfigId: null,
       degradedUntil: null,
       extra: {},
       lastTestedAt: '2024-01-01T00:00:00Z',
@@ -288,7 +286,30 @@ describe('mappers', () => {
     expect(result.id).toBe(1)
     expect(result.baseUrl).toBe('https://api.openai.com/v1')
     expect(result.modelName).toBe('gpt-4o')
-    expect(result.isDefault).toBe(true)
+  })
+
+  it('maps LLM config protocol passthrough (systemone 不再折叠为 openai)', () => {
+    const result = mapLLMConfig({
+      ...({
+        id: 2,
+        name: 'Jev Decision',
+        provider: 'codiv',
+        protocol: 'systemone',
+        baseUrl: 'https://api.codiv.ai',
+        modelName: 'openjev-0.1',
+        apiKeyMasked: 'sk-***',
+        isActive: true,
+        purpose: 'decision',
+        degradedUntil: null,
+        extra: {},
+        lastTestedAt: null,
+        lastTestStatus: null,
+        lastTestError: null,
+        createdAt: '2024-01-01T00:00:00Z',
+        updatedAt: '2024-01-01T00:00:00Z',
+      } as ApiLLMConfigResponse),
+    })
+    expect(result.protocol).toBe('systemone')
   })
 
   it('maps collector log', () => {
