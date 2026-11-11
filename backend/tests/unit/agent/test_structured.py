@@ -403,25 +403,27 @@ class TestRunStructured:
         assert fake_model.methods == ["function_calling"]
 
     @pytest.mark.asyncio
-    async def test_task_key_hits_binding_uses_config_id_path(self) -> None:
-        """task_key 命中绑定：回填 config_id 走 resolve_llm_by_id，绕过默认分流。"""
+    async def test_task_key_resolves_via_slot_llm(self) -> None:
+        """task_key 路径：经 resolve_task_llm 全量解析槽位主备，绕过其余分流。"""
         structured = _FakeStructured([_Out(value="ok")])
         fake_model = _FakeModel(structured)
         session = cast(AsyncSession, object())
         with (
             patch(
-                "app.agent.runtime.structured.resolve_task_config_id",
-                new=AsyncMock(return_value=7),
-            ) as p_binding,
+                "app.agent.runtime.structured.resolve_task_llm",
+                new=AsyncMock(
+                    return_value=SimpleNamespace(
+                        config_id=7, protocol="openai", model_name="bound"
+                    )
+                ),
+            ) as p_slot,
             patch(
                 "app.agent.runtime.structured.resolve_llm_by_id",
-                new=AsyncMock(
-                    return_value=SimpleNamespace(config_id=7, protocol="openai", model_name="bound")
-                ),
-            ) as p_by_id,
+                new=AsyncMock(side_effect=AssertionError("task_key 不走 by-id 解析")),
+            ),
             patch(
                 "app.agent.runtime.structured.resolve_llm",
-                new=AsyncMock(side_effect=AssertionError("不应走默认分流")),
+                new=AsyncMock(side_effect=AssertionError("不应走 BYOK 分流")),
             ),
             patch(
                 "app.agent.runtime.structured.build_langchain_model",
@@ -436,29 +438,21 @@ class TestRunStructured:
             )
 
         assert result == _Out(value="ok")
-        p_binding.assert_awaited_once_with(session, "news_score")
-        p_by_id.assert_awaited_once_with(session, 7)
+        p_slot.assert_awaited_once_with(session, "news_score")
 
     @pytest.mark.asyncio
-    async def test_task_key_unbound_falls_back_to_default_path(self) -> None:
-        """task_key 未绑定（解析返回 None）：保持既有默认路径，行为不变。"""
-        structured = _FakeStructured([_Out(value="ok")])
+    async def test_task_key_unbound_fails_loud(self) -> None:
+        """槽位未绑定主模型：fail loud 上抛（不再静默降级默认分流）。"""
+        from app.services.admin.llm_config_service import LLMConfigNotConfiguredError
+
+        structured = _FakeStructured([])
         fake_model = _FakeModel(structured)
         with (
             patch(
-                "app.agent.runtime.structured.resolve_task_config_id",
-                new=AsyncMock(return_value=None),
-            ),
-            patch(
-                "app.agent.runtime.structured.resolve_llm_by_id",
-                new=AsyncMock(side_effect=AssertionError("未绑定不应按条目解析")),
-            ),
-            patch(
-                "app.agent.runtime.structured.resolve_llm",
+                "app.agent.runtime.structured.resolve_task_llm",
                 new=AsyncMock(
-                    return_value=(
-                        SimpleNamespace(config_id=1, model_name="m1", protocol="openai"),
-                        "system",
+                    side_effect=LLMConfigNotConfiguredError(
+                        "任务槽位「新闻重要度分级」未绑定主模型"
                     )
                 ),
             ),
@@ -466,32 +460,31 @@ class TestRunStructured:
                 "app.agent.runtime.structured.build_langchain_model",
                 return_value=fake_model,
             ),
+            pytest.raises(LLMConfigNotConfiguredError, match="未绑定主模型"),
         ):
-            result = await run_structured(
+            await run_structured(
                 cast(AsyncSession, object()),
                 result_type=_Out,
                 user_prompt="hello",
                 task_key="news_score",
             )
 
-        assert result == _Out(value="ok")
-
     @pytest.mark.asyncio
     async def test_explicit_config_id_skips_task_binding(self) -> None:
-        """显式 config_id 优先：task_key 不参与解析。"""
+        """显式 config_id（无 task_key）：不查槽位绑定，按条目解析。"""
         structured = _FakeStructured([_Out(value="ok")])
         fake_model = _FakeModel(structured)
         with (
             patch(
-                "app.agent.runtime.structured.resolve_task_config_id",
-                new=AsyncMock(side_effect=AssertionError("显式 config_id 不查绑定")),
+                "app.agent.runtime.structured.resolve_task_llm",
+                new=AsyncMock(side_effect=AssertionError("显式 config_id 不查槽位")),
             ) as p_binding,
             patch(
                 "app.agent.runtime.structured.resolve_llm_by_id",
                 new=AsyncMock(
                     return_value=SimpleNamespace(config_id=5, protocol="openai", model_name="m5")
                 ),
-            ),
+            ) as p_by_id,
             patch(
                 "app.agent.runtime.structured.build_langchain_model",
                 return_value=fake_model,
@@ -502,10 +495,10 @@ class TestRunStructured:
                 result_type=_Out,
                 user_prompt="hello",
                 config_id=5,
-                task_key="news_score",
             )
 
         p_binding.assert_not_awaited()
+        p_by_id.assert_awaited_once()
 
     @pytest.mark.asyncio
     async def test_failover_retries_with_backup_on_rate_limit(self) -> None:
@@ -542,7 +535,38 @@ class TestRunStructured:
         assert [cfg.config_id for cfg in built] == [1, 2]
         # method 按备用协议重选：主 openai function_calling → 备用 anthropic function_calling
         assert fake_model.methods == ["function_calling", "function_calling"]
-        p_mark.assert_awaited_once_with(1)
+        p_mark.assert_awaited_once_with(1, failure_class="quota")
+
+    @pytest.mark.asyncio
+    async def test_failover_retries_with_backup_on_connect_error(self) -> None:
+        """连接类失败（断流）同样触发切备（2026-11-10 生产 mimo 事故的回应）。"""
+        primary = SimpleNamespace(config_id=1, protocol="openai", model_name="m1")
+        backup = SimpleNamespace(config_id=2, protocol="openai", model_name="m2")
+        structured = _FakeStructured(
+            [RuntimeError("peer closed connection without sending complete message"), _Out(value="ok")]
+        )
+        fake_model = _FakeModel(structured)
+
+        with (
+            patch(
+                "app.agent.runtime.structured.resolve_llm_by_id",
+                new=AsyncMock(side_effect=[primary, backup]),
+            ),
+            patch(
+                "app.agent.runtime.structured.build_langchain_model",
+                return_value=fake_model,
+            ),
+            patch("app.agent.runtime.structured.mark_unhealthy", new=AsyncMock()) as p_mark,
+        ):
+            result = await run_structured(
+                cast(AsyncSession, object()),
+                result_type=_Out,
+                user_prompt="hello",
+                config_id=1,
+            )
+
+        assert result == _Out(value="ok")
+        p_mark.assert_awaited_once_with(1, failure_class="connect")
 
     @pytest.mark.asyncio
     async def test_failover_raises_when_no_backup_switch(self) -> None:
@@ -573,8 +597,8 @@ class TestRunStructured:
 
     @pytest.mark.asyncio
     async def test_non_classified_error_propagates_without_retry(self) -> None:
-        """非额度类异常（如 5xx/程序错误）不触发主备重试。"""
-        structured = _FakeStructured([RuntimeError("connection reset")])
+        """非额度/连接类异常（如 5xx 文案、程序错误）不触发主备重试。"""
+        structured = _FakeStructured([RuntimeError("internal server error")])
         fake_model = _FakeModel(structured)
         with (
             patch(

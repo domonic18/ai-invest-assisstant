@@ -19,6 +19,7 @@ from app.core.decision_model import (
     JudgeUsage,
 )
 from app.models.llm_config import LLMConfig
+from app.models.llm_task_binding import LLMTaskBinding
 from app.schemas.llm_config import LLMConfigCreate, LLMConfigUpdate
 from app.services.admin import decision_model_service as dms
 from app.services.admin.decision_model_service import (
@@ -60,7 +61,10 @@ def _hermetic_redis(monkeypatch: pytest.MonkeyPatch) -> None:
 async def session():
     engine = create_async_engine("sqlite+aiosqlite:///:memory:", future=True)
     async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all, tables=[LLMConfig.__table__])
+        await conn.run_sync(
+            Base.metadata.create_all,
+            tables=[LLMConfig.__table__, LLMTaskBinding.__table__],
+        )
     async_session = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
     async with async_session() as db:
         yield db
@@ -79,6 +83,21 @@ async def _create_decision(session: Any, name: str = "Jev", **kw: Any):
             **kw,
         )
     )
+
+
+async def _bind_decision(
+    session: Any, config_id: int, backup_config_id: int | None = None
+) -> None:
+    """把 decision 槽位绑定到指定主/备条目（判断模型经任务槽位解析）。"""
+    session.add(
+        LLMTaskBinding(
+            task_key="decision",
+            config_id=config_id,
+            backup_config_id=backup_config_id,
+            updated_by=1,
+        )
+    )
+    await session.commit()
 
 
 def _judge_response(config_id: int | None = None) -> JudgeResponse:
@@ -108,8 +127,10 @@ class _StubClient:
 
 
 class TestResolveDecisionLLM:
-    async def test_raises_when_missing(self, session: Any) -> None:
-        with pytest.raises(LLMConfigNotConfiguredError):
+    async def test_raises_when_unbound(self, session: Any) -> None:
+        """decision 槽位未绑定主模型：fail loud（不再取首个 active decision 条目）。"""
+        await _create_decision(session)
+        with pytest.raises(LLMConfigNotConfiguredError, match="未绑定主模型"):
             await resolve_decision_llm(session)
 
     async def test_create_forces_systemone_protocol(self, session: Any) -> None:
@@ -126,6 +147,7 @@ class TestResolveDecisionLLM:
             session,
             extra={"timeout_seconds": 3.5, "thresholds": {"observe": 0.5, "fund_action": 0.9}},
         )
+        await _bind_decision(session, created.id)
         resolved = await resolve_decision_llm(session)
         assert resolved.config_id == created.id
         assert resolved.model_name == "jev-latest"
@@ -135,24 +157,25 @@ class TestResolveDecisionLLM:
         assert resolved.thresholds.fund_action == 0.9
 
     async def test_resolve_defaults_without_extra(self, session: Any) -> None:
-        await _create_decision(session)
+        created = await _create_decision(session)
+        await _bind_decision(session, created.id)
         resolved = await resolve_decision_llm(session)
         assert resolved.thresholds == DEFAULT_THRESHOLDS
         assert resolved.timeout_seconds == get_settings().decision_model_timeout_seconds
 
     async def test_resolve_invalid_extra_raises(self, session: Any) -> None:
-        await _create_decision(
+        created = await _create_decision(
             session, extra={"thresholds": {"observe": 0.9, "fund_action": 0.5}}
         )
+        await _bind_decision(session, created.id)
         with pytest.raises(DecisionModelConfigError):
             await resolve_decision_llm(session)
 
     async def test_resolve_switches_to_backup_when_unhealthy(self, session: Any) -> None:
+        """主条目冷却期内：健康门切槽位绑定的备用。"""
         primary = await _create_decision(session, name="主")
         backup = await _create_decision(session, name="备")
-        await LLMConfigService(session).update_config(
-            primary.id, LLMConfigUpdate(backup_config_id=backup.id)
-        )
+        await _bind_decision(session, primary.id, backup.id)
         with patch(
             "app.services.admin.llm_failover.is_unhealthy",
             new=AsyncMock(return_value=True),
@@ -164,6 +187,7 @@ class TestResolveDecisionLLM:
         created = await _create_decision(
             session, extra={"thresholds": {"observe": 0.5, "fund_action": 0.9}}
         )
+        await _bind_decision(session, created.id)
         resolved = await resolve_decision_llm(session)
         client = build_decision_client(resolved)
         assert client.thresholds.fund_action == 0.9
@@ -173,6 +197,7 @@ class TestResolveDecisionLLM:
 class TestAskDecision:
     async def test_success(self, session: Any, monkeypatch: pytest.MonkeyPatch) -> None:
         created = await _create_decision(session)
+        await _bind_decision(session, created.id)
         expected = _judge_response(created.id)
         monkeypatch.setattr(
             dms, "build_decision_client", lambda cfg: _StubClient(("ok", expected))
@@ -184,9 +209,7 @@ class TestAskDecision:
     ) -> None:
         primary = await _create_decision(session, name="主")
         backup = await _create_decision(session, name="备")
-        await LLMConfigService(session).update_config(
-            primary.id, LLMConfigUpdate(backup_config_id=backup.id)
-        )
+        await _bind_decision(session, primary.id, backup.id)
         expected = _judge_response(backup.id)
         built: list[int] = []
 
@@ -216,6 +239,7 @@ class TestAskDecision:
         self, session: Any, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         primary = await _create_decision(session, name="唯一")
+        await _bind_decision(session, primary.id)
         built: list[int] = []
 
         def fake_build(cfg: Any) -> _StubClient:
@@ -242,9 +266,7 @@ class TestAskDecision:
         """认证/pin 类错误重试与切备无意义——原样上抛且不标记冷却。"""
         primary = await _create_decision(session, name="主")
         backup = await _create_decision(session, name="备")
-        await LLMConfigService(session).update_config(
-            primary.id, LLMConfigUpdate(backup_config_id=backup.id)
-        )
+        await _bind_decision(session, primary.id, backup.id)
         built: list[int] = []
 
         def fake_build(cfg: Any) -> _StubClient:

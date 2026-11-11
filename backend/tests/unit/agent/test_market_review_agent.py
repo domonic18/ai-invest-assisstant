@@ -223,7 +223,7 @@ class TestRunSkill:
 
         assert contents["overview"] == "综述内容"
         assert model == "minimax/minimax-m2"
-        p_mark.assert_awaited_once_with(1)
+        p_mark.assert_awaited_once_with(1, failure_class="quota")
 
     @pytest.mark.asyncio
     async def test_rate_limit_without_backup_raises(self) -> None:

@@ -39,7 +39,7 @@ class TestRunWithLLMFailover:
             ) as p_mark,
             patch(
                 "app.agent.skills.skill_failover.classify_llm_error",
-                return_value=True,
+                return_value="quota",
             ),
         ):
             result, cfg = await run_with_llm_failover(
@@ -49,7 +49,7 @@ class TestRunWithLLMFailover:
         assert result == "ok"
         assert cfg is backup
         assert [c.config_id for c in calls] == [1, 2]
-        p_mark.assert_awaited_once_with(1)
+        p_mark.assert_awaited_once_with(1, failure_class="quota")
 
     @pytest.mark.asyncio
     async def test_reraises_when_no_backup_available(self) -> None:
@@ -71,17 +71,17 @@ class TestRunWithLLMFailover:
             await run_with_llm_failover(resolve, _run, task_key="market_daily_review")
 
         assert len(calls) == 1
-        p_mark.assert_awaited_once_with(1)
+        p_mark.assert_awaited_once_with(1, failure_class="quota")
 
     @pytest.mark.asyncio
     async def test_non_quota_error_propagates_without_retry(self) -> None:
-        """非额度类异常（如 5xx/程序错误）不触发主备重试。"""
+        """非额度/连接类异常（如 5xx 文案、程序错误）不触发主备重试。"""
         primary = SimpleNamespace(config_id=1, model_name="m1")
         calls: list[object] = []
 
         async def _run(cfg: SimpleNamespace) -> str:
             calls.append(cfg)
-            raise RuntimeError("connection reset")
+            raise RuntimeError("internal server error")
 
         resolve = AsyncMock(return_value=primary)
         with (
