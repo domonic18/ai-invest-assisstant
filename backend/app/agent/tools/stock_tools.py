@@ -193,7 +193,7 @@ async def persist_stock_daily_analysis(
         citation_gaps,
         warning_lines,
     )
-    from app.services.admin.llm_config_service import resolve_default_llm
+    from app.services.admin.llm_task_binding_service import resolve_task_llm
     from app.services.review import stock_daily_analysis_service
 
     try:
@@ -206,7 +206,7 @@ async def persist_stock_daily_analysis(
         sections = apply_sentinels(sections, gaps)
 
     async with AsyncSessionLocal() as session:
-        cfg = await resolve_default_llm(session)
+        cfg = await resolve_task_llm(session, "stock_daily_analysis")
         analysis = await stock_daily_analysis_service.persist_stock_analysis(
             session,
             stock_code,

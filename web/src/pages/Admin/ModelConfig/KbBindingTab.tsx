@@ -8,9 +8,13 @@ import type { ApiKbSettingsResponse, LLMConfig, LLMConfigCapabilities } from '@a
 
 interface KbBindingFormValues {
   embeddingConfigId: number | null
+  embeddingBackupId: number | null
   cleanModelId: number | null
+  cleanBackupId: number | null
   extractModelId: number | null
+  extractBackupId: number | null
   visionModelId: number | null
+  visionBackupId: number | null
 }
 
 // 候选过滤谓词（与后端 settings_service._role_accepts 同规则）
@@ -27,35 +31,40 @@ function acceptsVision(c: LLMConfig) {
 }
 
 const ROLE_FIELDS: {
-  name: keyof KbBindingFormValues
+  primaryName: keyof KbBindingFormValues
+  backupName: keyof KbBindingFormValues
   label: string
   accepts: (c: LLMConfig) => boolean
   extra: string
   notFound: string
 }[] = [
   {
-    name: 'embeddingConfigId',
+    primaryName: 'embeddingConfigId',
+    backupName: 'embeddingBackupId',
     label: '嵌入模型',
     accepts: purposeIs('embedding'),
     extra: '切片向量化（知识库检索召回），须为 embedding 用途条目',
     notFound: '暂无「embedding」用途的启用条目，请先在「模型条目」中添加',
   },
   {
-    name: 'cleanModelId',
+    primaryName: 'cleanModelId',
+    backupName: 'cleanBackupId',
     label: '清洗模型',
     accepts: purposeIs('chat'),
     extra: '转写文稿口语清洗（热词纠错/标点/分段），须为 chat 用途条目',
     notFound: '暂无「chat」用途的启用条目，请先在「模型条目」中添加',
   },
   {
-    name: 'extractModelId',
+    primaryName: 'extractModelId',
+    backupName: 'extractBackupId',
     label: '抽取模型',
     accepts: purposeIs('chat'),
     extra: '知识卡片抽取与大纲生成，须为 chat 用途条目',
     notFound: '暂无「chat」用途的启用条目，请先在「模型条目」中添加',
   },
   {
-    name: 'visionModelId',
+    primaryName: 'visionModelId',
+    backupName: 'visionBackupId',
     label: '视觉模型',
     accepts: acceptsVision,
     extra: '插图/图表理解（图片转文字），vision 用途或勾选「视觉能力」的对话条目均可',
@@ -66,9 +75,13 @@ const ROLE_FIELDS: {
 function toFormValues(settings: ApiKbSettingsResponse): KbBindingFormValues {
   return {
     embeddingConfigId: settings.embeddingConfigId,
+    embeddingBackupId: settings.embeddingBackupId,
     cleanModelId: settings.cleanModelId,
+    cleanBackupId: settings.cleanBackupId,
     extractModelId: settings.extractModelId,
+    extractBackupId: settings.extractBackupId,
     visionModelId: settings.visionModelId,
+    visionBackupId: settings.visionBackupId,
   }
 }
 
@@ -78,12 +91,16 @@ function RoleSlotSelect({
   notFound,
   value,
   onChange,
+  allowEmpty,
+  placeholder,
 }: {
   config: LLMConfig[]
   accepts: (c: LLMConfig) => boolean
   notFound: string
   value: number | null | undefined
   onChange: (id: number | null) => void
+  allowEmpty: boolean
+  placeholder: string
 }) {
   const options = config
     .filter((c) => accepts(c) && c.isActive)
@@ -92,9 +109,10 @@ function RoleSlotSelect({
     <Select
       value={value ?? undefined}
       onChange={(id) => onChange(id ?? null)}
+      onClear={() => onChange(null)}
       options={options}
-      allowClear
-      placeholder="未配置"
+      allowClear={allowEmpty}
+      placeholder={placeholder}
       style={{ width: '100%' }}
       notFoundContent={notFound}
     />
@@ -133,18 +151,47 @@ export function KbBindingTab() {
           type="info"
           showIcon
           style={{ marginBottom: 16 }}
-          message="四个角色均指向「模型条目」，按用途过滤（视觉模型按「视觉能力」判定：vision 用途或勾选视觉能力的对话条目）；条目停用或不满足要求后管线任务会显式报错而非静默走错模型"
+          message="四个角色均指向「模型条目」，按用途过滤（视觉模型按「视觉能力」判定：vision 用途或勾选视觉能力的对话条目），均支持主+备；主模型额度耗尽或连接中断冷却期内自动切备用；条目停用或不满足要求后管线任务会显式报错而非静默走错模型"
         />
         {ROLE_FIELDS.map((role) => (
-          <Form.Item key={role.name} label={role.label} name={role.name} extra={role.extra}>
-            <RoleSlotSelect
-              config={configs ?? []}
-              accepts={role.accepts}
-              notFound={role.notFound}
-              value={form.getFieldValue(role.name)}
-              onChange={(id) => form.setFieldValue(role.name, id)}
-            />
-          </Form.Item>
+          <div key={role.label}>
+            <Form.Item
+              label={role.label}
+              name={role.primaryName}
+              extra={role.extra}
+              style={{ marginBottom: 8 }}
+            >
+              <RoleSlotSelect
+                config={configs ?? []}
+                accepts={role.accepts}
+                notFound={role.notFound}
+                value={form.getFieldValue(role.primaryName)}
+                onChange={(id) => form.setFieldValue(role.primaryName, id)}
+                allowEmpty={true}
+                placeholder="未配置"
+              />
+            </Form.Item>
+            <Form.Item label={`${role.label} · 备用`} name={role.backupName}>
+              <RoleSlotSelect
+                config={(configs ?? []).filter(
+                  (c) => c.id !== form.getFieldValue(role.primaryName),
+                )}
+                accepts={role.accepts}
+                notFound={role.notFound}
+                value={form.getFieldValue(role.backupName)}
+                onChange={(id) => {
+                  if (id === form.getFieldValue(role.primaryName)) {
+                    message.warning('备用模型不能与主模型相同')
+                    form.setFieldValue(role.backupName, null)
+                    return
+                  }
+                  form.setFieldValue(role.backupName, id)
+                }}
+                allowEmpty={true}
+                placeholder="可选备用"
+              />
+            </Form.Item>
+          </div>
         ))}
         <Button type="primary" htmlType="submit" loading={updateMutation.isPending}>
           保存绑定

@@ -98,7 +98,7 @@ class TestAnalyzeAndPersist:
                 new=AsyncMock(return_value=1),
             ),
             patch.object(
-                chain_analysis_service, "resolve_default_llm", new=AsyncMock(return_value=_resolved())
+                chain_analysis_service, "resolve_task_llm", new=AsyncMock(return_value=_resolved())
             ),
             patch.object(
                 industry_chain_analysis,
@@ -166,7 +166,7 @@ class TestAnalyzeAndPersist:
                 new=AsyncMock(return_value=2),
             ),
             patch.object(
-                chain_analysis_service, "resolve_default_llm", new=AsyncMock(return_value=_resolved())
+                chain_analysis_service, "resolve_task_llm", new=AsyncMock(return_value=_resolved())
             ),
             patch.object(
                 industry_chain_analysis,

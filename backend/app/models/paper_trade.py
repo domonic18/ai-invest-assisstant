@@ -159,7 +159,10 @@ class TradingAgent(Base):
     tagline: Mapped[str] = mapped_column(String(128), nullable=False, default="")
     llm_config_id: Mapped[int | None] = mapped_column(
         Integer, nullable=True
-    )  # 对话/结构化输出模型；FK 见迁移（ON DELETE SET NULL），空 = 默认 chat
+    )  # 对话/结构化输出主模型；FK 见迁移（ON DELETE SET NULL），空 = 跟随助手对话槽位
+    llm_backup_config_id: Mapped[int | None] = mapped_column(
+        Integer, nullable=True
+    )  # 主模型冷却/失效时的备用（无 FK，服务层校验存在/启用/chat/≠主）
     methodology_source_id: Mapped[int | None] = mapped_column(
         Integer, nullable=True
     )  # 方法论知识源 kb_source.id；FK 见迁移（ON DELETE SET NULL），空 = 未启用

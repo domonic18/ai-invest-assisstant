@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 
 import type { ApiTaskBindingSlot, LLMConfig } from '@ai-invest/shared'
@@ -16,14 +16,27 @@ const mockedTaskBindings = vi.mocked(useTaskBindings)
 const mockedConfigs = vi.mocked(useLLMConfigs)
 const mockedReplace = vi.mocked(useReplaceTaskBindings)
 
+// rc-select 关闭后的下拉仍挂载在 DOM（hidden），断言须限定在当前可见下拉内
+function visibleDropdown(): HTMLElement {
+  const dropdown = document.querySelector(
+    '.ant-select-dropdown:not(.ant-select-dropdown-hidden)',
+  )
+  expect(dropdown).not.toBeNull()
+  return dropdown as HTMLElement
+}
+
 function slotFixture(overrides: Partial<ApiTaskBindingSlot> = {}): ApiTaskBindingSlot {
   return {
     taskKey: 'news_score',
     label: '新闻重要度分级',
     description: '电报快讯 AI 重要度打分（高频轻任务）',
+    purpose: 'chat',
     configId: null,
     configName: null,
     modelName: null,
+    backupConfigId: null,
+    backupConfigName: null,
+    backupModelName: null,
     updatedAt: null,
     ...overrides,
   }
@@ -38,10 +51,8 @@ function configFixture(overrides: Partial<LLMConfig> = {}): LLMConfig {
     baseUrl: 'https://api.deepseek.com',
     modelName: 'deepseek-chat',
     apiKeyMasked: 'sk-***',
-    isDefault: false,
     isActive: true,
     purpose: 'chat',
-    backupConfigId: null,
     degradedUntil: null,
     extra: {},
     lastTestedAt: null,
@@ -86,7 +97,12 @@ describe('TaskBindingTab', () => {
       configId: 2,
       configName: '旧绑定',
       modelName: 'old-model',
-      updatedAt: '2026-10-13T00:00:00Z',
+    }),
+    slotFixture({
+      taskKey: 'decision',
+      label: '判断模型',
+      description: '盘中执行 L1 判断',
+      purpose: 'decision',
     }),
   ]
 
@@ -102,43 +118,112 @@ describe('TaskBindingTab', () => {
     expect(screen.getByText('电报快讯 AI 重要度打分（高频轻任务）')).toBeInTheDocument()
     expect(screen.getByText('产业链图谱周度 AI 刷新')).toBeInTheDocument()
     expect(screen.getByText('旧绑定（old-model）')).toBeInTheDocument()
-    expect(screen.getByText(/轻任务绑廉价模型/)).toBeInTheDocument()
+    expect(screen.getByText(/每槽位绑定主模型/)).toBeInTheDocument()
   })
 
-  it('Select 只列 chat 用途且启用的条目', () => {
+  it('Select 候选按槽位 purpose 过滤且仅列启用条目', () => {
     setup(slots, [
       configFixture({ id: 1, name: '可用对话', modelName: 'chat-1' }),
       configFixture({ id: 2, name: '停用对话', modelName: 'chat-2', isActive: false }),
       configFixture({ id: 3, name: '嵌入条目', modelName: 'embed-1', purpose: 'embedding' }),
+      configFixture({
+        id: 4,
+        name: '判断条目',
+        modelName: 'jev-latest',
+        purpose: 'decision',
+      }),
     ])
 
+    // combobox 顺序：每槽位「主模型、备用模型」两个 select 依次排列
     fireEvent.mouseDown(screen.getAllByRole('combobox')[0])
+    const chatDropdown = visibleDropdown()
+    expect(within(chatDropdown).getByText('可用对话（chat-1）')).toBeInTheDocument()
+    expect(within(chatDropdown).queryByText('停用对话（chat-2）')).not.toBeInTheDocument()
+    expect(within(chatDropdown).queryByText('嵌入条目（embed-1）')).not.toBeInTheDocument()
+    expect(within(chatDropdown).queryByText('判断条目（jev-latest）')).not.toBeInTheDocument()
 
-    expect(screen.getByText('可用对话（chat-1）')).toBeInTheDocument()
-    expect(screen.queryByText('停用对话（chat-2）')).not.toBeInTheDocument()
-    expect(screen.queryByText('嵌入条目（embed-1）')).not.toBeInTheDocument()
+    // decision 槽位的主模型 select（第 7 个 combobox，3 槽 × 2 + 1）只列 decision 条目
+    fireEvent.mouseDown(screen.getAllByRole('combobox')[6])
+    const decisionDropdown = visibleDropdown()
+    expect(within(decisionDropdown).getByText('判断条目（jev-latest）')).toBeInTheDocument()
+    expect(within(decisionDropdown).queryByText('可用对话（chat-1）')).not.toBeInTheDocument()
   })
 
-  it('保存提交整表单：已选槽位带 id，未绑定槽位为 null', async () => {
-    const { mutateAsync } = setup(slots, [configFixture({ id: 1 })])
+  it('主模型必填：未选时保存被拦截', async () => {
+    const { mutateAsync } = setup(slots, [configFixture()])
 
-    fireEvent.mouseDown(screen.getAllByRole('combobox')[0])
-    fireEvent.click(screen.getByText('DeepSeek Chat（deepseek-chat）'))
     fireEvent.click(screen.getByRole('button', { name: /保存绑定/ }))
 
-    await waitFor(() => expect(mutateAsync).toHaveBeenCalledTimes(1))
-    const payload = mutateAsync.mock.calls[0][0] as {
-      bindings: { taskKey: string; configId: number | null }[]
-    }
-    expect(payload.bindings).toHaveLength(3)
-    expect(payload.bindings[0]).toEqual({ taskKey: 'news_score', configId: 1 })
-    expect(payload.bindings[1]).toEqual({ taskKey: 'market_daily_review', configId: null })
-    expect(payload.bindings[2]).toEqual({ taskKey: 'chain_refresh', configId: 2 })
-    expect(await screen.findByText('任务模型绑定已保存')).toBeInTheDocument()
+    await waitFor(() =>
+      expect(screen.getAllByText('请选择主模型').length).toBeGreaterThan(0),
+    )
+    expect(mutateAsync).not.toHaveBeenCalled()
   })
 
+  // 四次下拉交互 + 整表单校验在并行满载下耗时 >15s 默认超时，单独放宽
+  it(
+    '保存提交整表单：主备字段成对提交，未选备用的为 null',
+    { timeout: 45000 },
+    async () => {
+    const { mutateAsync } = setup(slots, [
+      configFixture({ id: 1, name: '主模型A', modelName: 'a-1' }),
+      configFixture({ id: 2, name: '旧绑定', modelName: 'old-model' }),
+      configFixture({ id: 3, name: '备用模型B', modelName: 'b-1' }),
+      configFixture({
+        id: 4,
+        name: '判断条目',
+        modelName: 'jev-latest',
+        purpose: 'decision',
+      }),
+    ])
+
+    const selectOption = async (comboboxIndex: number, optionLabel: string) => {
+      fireEvent.mouseDown(screen.getAllByRole('combobox')[comboboxIndex])
+      const dropdown = await waitFor(() => visibleDropdown(), { timeout: 5000 })
+      fireEvent.click(within(dropdown).getByText(optionLabel))
+    }
+    await selectOption(0, '主模型A（a-1）') // 槽位 0（news_score）主模型
+    await selectOption(1, '备用模型B（b-1）') // 槽位 0 备用模型
+    await selectOption(2, '主模型A（a-1）') // 槽位 1（market_daily_review）主模型
+    await selectOption(6, '判断条目（jev-latest）') // 槽位 3（decision）主模型
+
+    fireEvent.click(screen.getByRole('button', { name: /保存绑定/ }))
+
+    await waitFor(() => expect(mutateAsync).toHaveBeenCalledTimes(1), { timeout: 5000 })
+    const payload = mutateAsync.mock.calls[0][0] as {
+      bindings: { taskKey: string; configId: number; backupConfigId: number | null }[]
+    }
+    expect(payload.bindings).toHaveLength(4)
+    expect(payload.bindings[0]).toEqual({
+      taskKey: 'news_score',
+      configId: 1,
+      backupConfigId: 3,
+    })
+    expect(payload.bindings[1]).toEqual({
+      taskKey: 'market_daily_review',
+      configId: 1,
+      backupConfigId: null,
+    })
+    expect(payload.bindings[2]).toEqual({
+      taskKey: 'chain_refresh',
+      configId: 2,
+      backupConfigId: null,
+    })
+    expect(payload.bindings[3]).toEqual({
+      taskKey: 'decision',
+      configId: 4,
+      backupConfigId: null,
+    })
+    expect(await screen.findByText('任务模型绑定已保存')).toBeInTheDocument()
+    },
+  )
+
   it('保存失败提示错误信息', async () => {
-    setup(slots, [configFixture()], vi.fn().mockRejectedValue(new Error('校验失败')))
+    setup(
+      slots.slice(0, 1).map((s) => ({ ...s, configId: 1 })),
+      [configFixture()],
+      vi.fn().mockRejectedValue(new Error('校验失败')),
+    )
 
     fireEvent.click(screen.getByRole('button', { name: /保存绑定/ }))
 

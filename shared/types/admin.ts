@@ -14,12 +14,9 @@ export interface LLMConfig {
   baseUrl: string
   modelName: string
   apiKeyMasked: string
-  isDefault: boolean
   isActive: boolean
   purpose: LlmPurpose
-  /** 备用配置 id：本配置额度耗尽冷却期内自动切换的目标（单级） */
-  backupConfigId: number | null
-  /** 额度耗尽冷却截止时间；null 表示健康 */
+  /** 冷却截止时间（额度耗尽长冷却或连接中断短冷却）；null 表示健康 */
   degradedUntil: string | null
   extra: Record<string, unknown>
   lastTestedAt: string | null
@@ -36,10 +33,8 @@ export interface LLMConfigFormValues {
   baseUrl: string
   modelName: string
   apiKey: string
-  isDefault: boolean
   isActive: boolean
   purpose: LlmPurpose
-  backupConfigId?: number | null
   vision?: boolean
 }
 
@@ -49,10 +44,10 @@ export interface LLMConfigTestResult {
   testedAt: string
 }
 
-/** 配置用途（知识库模型角色槽位按此过滤候选；视觉槽例外——vision 用途，或
- *  勾选「视觉能力」的 chat 用途，见 KbBindingTab/KB settings_service）。
- *  decision 为判断模型（盘中执行 L1），不进任何 F-KB 槽位候选，也不参与
- *  默认对话解析。 */
+/** 配置用途（任务槽位与知识库模型角色槽位按此过滤候选；视觉槽例外——
+ *  vision 用途，或勾选「视觉能力」的 chat 用途，见 KbBindingTab/KB
+ *  settings_service）。decision 为判断模型（systemone 协议，D23），只进
+ *  任务槽位「判断模型」的候选。 */
 export type LlmPurpose = 'chat' | 'embedding' | 'vision' | 'decision'
 
 export interface ApiLLMConfigResponse {
@@ -63,10 +58,8 @@ export interface ApiLLMConfigResponse {
   baseUrl: string
   modelName: string
   apiKeyMasked: string
-  isDefault: boolean
   isActive: boolean
   purpose: LlmPurpose
-  backupConfigId: number | null
   degradedUntil: string | null
   extra: Record<string, unknown>
   lastTestedAt: string | null
@@ -83,10 +76,8 @@ export interface ApiLLMConfigCreateRequest {
   baseUrl: string
   apiKey: string
   modelName: string
-  isDefault?: boolean
   isActive?: boolean
   purpose?: LlmPurpose
-  backupConfigId?: number | null
   extra?: Record<string, unknown>
 }
 
@@ -97,10 +88,8 @@ export interface ApiLLMConfigUpdateRequest {
   baseUrl?: string
   apiKey?: string
   modelName?: string
-  isDefault?: boolean
   isActive?: boolean
   purpose?: LlmPurpose
-  backupConfigId?: number | null
   extra?: Record<string, unknown>
 }
 
@@ -112,6 +101,7 @@ export interface ApiLLMConfigTestResponse {
 
 /** AI 任务槽位键（真相源：后端 TASK_SLOTS 注册表，集合由单测钉死）。 */
 export type AiTaskKey =
+  | 'assistant_chat'
   | 'news_score'
   | 'social_sentiment'
   | 'news_storyline'
@@ -122,25 +112,32 @@ export type AiTaskKey =
   | 'stock_daily_analysis'
   | 'limit_up_review'
   | 'chain_refresh'
+  | 'decision'
 
-/** 任务槽位视图：目录元信息 + 当前绑定（configId=null = 跟随系统默认）。 */
+/** 任务槽位视图：目录元信息 + 当前绑定（主模型必填 + 可选备用）。 */
 export interface ApiTaskBindingSlot {
   taskKey: AiTaskKey
   label: string
   description: string
+  /** 槽位要求的条目用途（绑定候选按此过滤） */
+  purpose: LlmPurpose
   configId: number | null
   configName: string | null
   modelName: string | null
+  backupConfigId: number | null
+  backupConfigName: string | null
+  backupModelName: string | null
   updatedAt: string | null
 }
 
-/** 单个任务槽位绑定项；configId=null 表示解绑。 */
+/** 单个任务槽位绑定项；主模型必填（解绑不再合法），备用可空。 */
 export interface ApiTaskBindingItem {
   taskKey: AiTaskKey
-  configId: number | null
+  configId: number
+  backupConfigId?: number | null
 }
 
-/** 整表单保存任务绑定：非空 upsert、空删行；未携带的槽位不改动。 */
+/** 整表单保存任务绑定：逐槽位 upsert；未携带的槽位不改动。 */
 export interface ApiTaskBindingReplaceRequest {
   bindings: ApiTaskBindingItem[]
 }

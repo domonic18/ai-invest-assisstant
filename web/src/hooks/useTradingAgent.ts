@@ -205,7 +205,7 @@ export function useTradingAgentDates(agentKey: string) {
   })
 }
 
-/** 交易 Agent 可绑定的对话模型选项（启用中的 chat 用途配置；留空 = 平台默认）。 */
+/** 交易 Agent 可绑定的对话模型选项（启用中的 chat 用途配置；留空 = 跟随助手对话槽位）。 */
 export function useTradingAgentLlmOptions() {
   return useQuery({
     queryKey: queryKeys.tradingAgent.llmConfigs,
@@ -215,7 +215,7 @@ export function useTradingAgentLlmOptions() {
         .filter((config) => config.purpose === 'chat' && config.isActive)
         .map((config) => ({
           value: config.id,
-          label: `${config.name}（${config.modelName}）${config.isDefault ? ' · 平台默认' : ''}`,
+          label: `${config.name}（${config.modelName}）`,
         })),
   })
 }

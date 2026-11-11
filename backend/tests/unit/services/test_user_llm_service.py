@@ -1,4 +1,4 @@
-"""BYOK 服务单测：加密往返、脱敏、出口优先级（BYOK > 默认/视觉）、清除回落。"""
+"""BYOK 服务单测：加密往返、脱敏、出口优先级（BYOK > 助手对话槽位）、清除回落。"""
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from app.core.database import Base
 from app.models.account_quota import UserLlmConfig
 from app.models.llm_config import LLMConfig
+from app.models.llm_task_binding import LLMTaskBinding
 from app.models.user import User
 from app.models.user_group import UserGroup
 from app.services.quota.constants import OUTLET_BYOK, OUTLET_SYSTEM
@@ -32,7 +33,8 @@ async def session():
         await conn.run_sync(
             Base.metadata.create_all,
             tables=[User.__table__,
-                UserGroup.__table__, UserLlmConfig.__table__, LLMConfig.__table__],
+                UserGroup.__table__, UserLlmConfig.__table__, LLMConfig.__table__,
+                LLMTaskBinding.__table__],
         )
     maker = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
     async with maker() as db:
@@ -40,19 +42,26 @@ async def session():
     await engine.dispose()
 
 
-async def _seed_user_with_default_llm(session: AsyncSession) -> int:
+async def _seed_user_with_system_llm(session: AsyncSession) -> int:
+    """建用户并把 assistant_chat 槽位绑到系统条目（系统出口即槽位）。"""
     user = User(username="u", email="u@x.com", password_hash="x", role="user")
     session.add(user)
+    config = LLMConfig(
+        name="system",
+        provider="openai",
+        protocol="openai",
+        base_url="https://default.example.com/v1",
+        api_key_encrypted=encrypt_token("sk-default"),
+        model_name="sys-model",
+        is_active=True,
+    )
+    session.add(config)
+    await session.flush()
     session.add(
-        LLMConfig(
-            name="default",
-            provider="openai",
-            protocol="openai",
-            base_url="https://default.example.com/v1",
-            api_key_encrypted=encrypt_token("sk-default"),
-            model_name="sys-model",
-            is_default=True,
-            is_active=True,
+        LLMTaskBinding(
+            task_key="assistant_chat",
+            config_id=config.id,
+            updated_by=1,
         )
     )
     await session.flush()
@@ -60,7 +69,7 @@ async def _seed_user_with_default_llm(session: AsyncSession) -> int:
 
 
 async def test_save_encrypts_and_masks(session: AsyncSession) -> None:
-    user_id = await _seed_user_with_default_llm(session)
+    user_id = await _seed_user_with_system_llm(session)
     view = await save_user_llm_config(
         session,
         user_id,
@@ -81,7 +90,7 @@ async def test_save_encrypts_and_masks(session: AsyncSession) -> None:
 
 
 async def test_resolve_byok_takes_priority(session: AsyncSession) -> None:
-    user_id = await _seed_user_with_default_llm(session)
+    user_id = await _seed_user_with_system_llm(session)
     await save_user_llm_config(
         session,
         user_id,
@@ -97,15 +106,15 @@ async def test_resolve_byok_takes_priority(session: AsyncSession) -> None:
     assert cfg.api_key == "sk-own"
 
 
-async def test_resolve_without_byok_uses_default(session: AsyncSession) -> None:
-    user_id = await _seed_user_with_default_llm(session)
+async def test_resolve_without_byok_uses_assistant_chat_slot(session: AsyncSession) -> None:
+    user_id = await _seed_user_with_system_llm(session)
     cfg, outlet = await resolve_llm(session, user_id)
     assert outlet == OUTLET_SYSTEM
     assert cfg.model_name == "sys-model"
 
 
 async def test_clear_falls_back(session: AsyncSession) -> None:
-    user_id = await _seed_user_with_default_llm(session)
+    user_id = await _seed_user_with_system_llm(session)
     await save_user_llm_config(
         session,
         user_id,
@@ -122,7 +131,7 @@ async def test_clear_falls_back(session: AsyncSession) -> None:
     assert outlet == OUTLET_SYSTEM
 
 
-async def test_resolve_no_user_is_default(session: AsyncSession) -> None:
-    await _seed_user_with_default_llm(session)
+async def test_resolve_no_user_uses_assistant_chat_slot(session: AsyncSession) -> None:
+    await _seed_user_with_system_llm(session)
     _cfg, outlet = await resolve_llm(session, None)
     assert outlet == OUTLET_SYSTEM

@@ -71,7 +71,9 @@ async def _bound_model_supports_vision(agent_key: str) -> bool:
     try:
         async with AsyncSessionLocal() as session:
             row = await get_agent(session, agent_key)
-            cfg = await resolve_trading_llm(row.llm_config_id)
+            cfg = await resolve_trading_llm(
+                row.llm_config_id, row.llm_backup_config_id
+            )
     except Exception:  # noqa: BLE001
         logger.warning("trading_agent_vision_probe_failed", agent_key=agent_key)
         return False
