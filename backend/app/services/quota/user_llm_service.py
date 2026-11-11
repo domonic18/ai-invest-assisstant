@@ -1,8 +1,9 @@
 """用户自备 API Key（BYOK）与模型出口分流（arch/07 §5）。
 
 出口分流在解析层：``resolve_llm`` 统一决定本次调用走 BYOK 还是系统模型
-（显式 user_id 优先，否则取当前计量上下文属主，无属主即系统维度走系统默认）。
-解析之后不存在任何回退路径——BYOK 端点调用失败由调用层原样上抛。
+（显式 user_id 优先，否则取当前计量上下文属主，无属主即系统维度走
+助手对话槽位）。解析之后不存在任何回退路径——BYOK 端点调用失败由调用
+层原样上抛。
 
 加密复用 ``app/utils/crypto.py``（与 llm_config 同一 Fernet 路径）；
 读路径只返回脱敏视图，永不回明文；api_key 不进任何日志字段。
@@ -18,9 +19,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.account_quota import UserLlmConfig
 from app.services.admin.llm_config_service import (
     ResolvedLLMConfig,
-    resolve_default_llm,
     resolve_vision_llm,
 )
+from app.services.admin.llm_task_binding_service import resolve_task_llm
 from app.services.quota.constants import BYOK_PROVIDER, OUTLET_BYOK, OUTLET_SYSTEM
 from app.services.quota.context import current_meter_context
 from app.utils.api_base import normalize_api_base
@@ -77,7 +78,8 @@ async def resolve_llm(
             return _to_resolved(row), OUTLET_BYOK
     if vision:
         return await resolve_vision_llm(session), OUTLET_SYSTEM
-    return await resolve_default_llm(session), OUTLET_SYSTEM
+    # 系统出口 = 助手对话槽位（主备绑定 + 健康门；无 BYOK 时的统一默认出口）
+    return await resolve_task_llm(session, "assistant_chat"), OUTLET_SYSTEM
 
 
 async def get_user_llm_config(session: AsyncSession, user_id: int) -> UserLlmConfigView | None:

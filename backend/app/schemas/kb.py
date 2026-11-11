@@ -114,6 +114,10 @@ class KbSettingsResponse(CamelModel):
     clean_model_id: int | None
     extract_model_id: int | None
     vision_model_id: int | None
+    embedding_backup_id: int | None
+    clean_backup_id: int | None
+    extract_backup_id: int | None
+    vision_backup_id: int | None
     authorized_user_ids: list[int]
     updated_at: datetime | None = None
 
@@ -131,6 +135,10 @@ class KbSettingsUpdateRequest(CamelModel):
     clean_model_id: int | None = None
     extract_model_id: int | None = None
     vision_model_id: int | None = None
+    embedding_backup_id: int | None = None
+    clean_backup_id: int | None = None
+    extract_backup_id: int | None = None
+    vision_backup_id: int | None = None
     authorized_user_ids: list[int] | None = Field(None, max_length=500)
 
 

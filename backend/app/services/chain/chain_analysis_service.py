@@ -22,7 +22,7 @@ from app.repositories.chain import (
 )
 from app.repositories.review import ai_analysis_repository
 from app.schemas.chain import ChainAnalysisResult, ChainAnalyzeResponse
-from app.services.admin.llm_config_service import resolve_default_llm
+from app.services.admin.llm_task_binding_service import resolve_task_llm
 
 SKILL_ID = "industry-chain-analysis"
 
@@ -209,7 +209,7 @@ async def analyze_and_persist(
     # 延迟导入：skills 执行器顶层依赖 agent.runtime/agent.tools，后者又依赖 services
     from app.agent.skills import industry_chain_analysis
 
-    resolved = await resolve_default_llm(session)
+    resolved = await resolve_task_llm(session, "assistant_chat")
     try:
         result = await industry_chain_analysis.run_skill(
             session, {"industry": industry, "focus": focus}

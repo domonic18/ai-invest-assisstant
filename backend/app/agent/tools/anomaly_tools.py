@@ -97,7 +97,7 @@ async def persist_sector_anomaly_attribution(
             为板块代码，category 取 resonance（趋势共振）或 rotation（轮动补涨），
             必须来自当日板块异动检测清单；summary 为 1-2 句简体中文归因摘要。
     """
-    from app.services.admin.llm_config_service import resolve_default_llm
+    from app.services.admin.llm_task_binding_service import resolve_task_llm
 
     resolved, error = _parse_trade_date(trade_date)
     if error:
@@ -105,7 +105,7 @@ async def persist_sector_anomaly_attribution(
     assert resolved is not None
 
     async with AsyncSessionLocal() as session:
-        cfg = await resolve_default_llm(session)
+        cfg = await resolve_task_llm(session, "sector_anomaly")
         try:
             result = await anomaly_attribution_service.persist_manual_attribution(
                 session,
@@ -139,7 +139,7 @@ async def persist_stock_anomaly_attribution(
             （趋势突破启动）、acceleration（趋势内加速）或 pullback（下跌反抽），
             必须来自当日个股异动检测清单；summary 为 1-2 句简体中文归因摘要。
     """
-    from app.services.admin.llm_config_service import resolve_default_llm
+    from app.services.admin.llm_task_binding_service import resolve_task_llm
 
     resolved, error = _parse_trade_date(trade_date)
     if error:
@@ -147,7 +147,7 @@ async def persist_stock_anomaly_attribution(
     assert resolved is not None
 
     async with AsyncSessionLocal() as session:
-        cfg = await resolve_default_llm(session)
+        cfg = await resolve_task_llm(session, "stock_anomaly")
         try:
             result = await anomaly_attribution_service.persist_manual_attribution(
                 session,

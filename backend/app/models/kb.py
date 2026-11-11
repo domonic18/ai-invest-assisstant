@@ -253,6 +253,11 @@ class KbSettings(Base):
     vision_model_id: Mapped[int | None] = mapped_column(
         ForeignKey("llm_config.id", ondelete="SET NULL"), nullable=True
     )
+    # 四角色备用（主冷却/失效时切换；无 FK 与主列同理由服务层校验）
+    embedding_backup_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    clean_backup_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    extract_backup_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    vision_backup_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     authorized_user_ids: Mapped[list[Any]] = mapped_column(_JSONB, nullable=False, default=list)
     updated_by: Mapped[int | None] = mapped_column(
         ForeignKey("user.id", ondelete="SET NULL"), nullable=True

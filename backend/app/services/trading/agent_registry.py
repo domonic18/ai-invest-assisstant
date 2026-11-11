@@ -1,6 +1,6 @@
 """交易 Agent 注册表服务（``trading_agent``，见 docs/arch/10-simulated-trading.md §3）。
 
-身份/介绍/模型绑定（空 = 平台默认 chat 模型）、方法论知识源绑定（空 = 未启用
+身份/介绍/模型绑定（主模型 + 可选备用；主空 = 跟随助手对话槽位）、方法论知识源绑定（空 = 未启用
 方法论基座注入）、风控阈值（批次 8 盘中执行消费）、intraday_exec_mode 执行三态
 （off/shadow/active）全部按 agent_key 维度维护，改选即时生效（每次构建 agent /
 生成计划时现读）。
@@ -124,6 +124,7 @@ def to_view(row: TradingAgent) -> TradingAgentProfileResponse:
         name=row.name,
         tagline=row.tagline,
         llm_config_id=row.llm_config_id,
+        llm_backup_config_id=row.llm_backup_config_id,
         methodology_source_id=row.methodology_source_id,
         risk_max_position_pct=float(row.risk_max_position_pct),
         risk_max_total_pct=float(row.risk_max_total_pct),
@@ -158,7 +159,8 @@ async def update_agent(
 ) -> TradingAgentProfileResponse:
     """保存 Agent 信息/配置（D28：任意状态可写——未上线/停用的 Agent 也可先配置）。
 
-    提交的 llm_config_id 校验存在、启用且用途为 chat，methodology_source_id
+    提交的 llm_config_id 校验存在、启用且用途为 chat，llm_backup_config_id
+    同规则且不得等于主模型，methodology_source_id
     校验存在且启用；prompt_id 须在模板清单内（D30 开放换绑）；status 仅接受
     active/disabled（'planned' 为种子初始态，API 不可设置——启用即置 active）。
 
@@ -178,6 +180,16 @@ async def update_agent(
         if payload["llm_config_id"] is not None:
             await _validate_llm_config(session, payload["llm_config_id"])
         row.llm_config_id = payload["llm_config_id"]
+
+    if "llm_backup_config_id" in payload:
+        primary = row.llm_config_id
+        if payload["llm_backup_config_id"] is not None:
+            await _validate_llm_config(
+                session, payload["llm_backup_config_id"]
+            )
+            if primary is not None and payload["llm_backup_config_id"] == primary:
+                raise UnprocessableEntityError("备用模型不能与主模型相同")
+        row.llm_backup_config_id = payload["llm_backup_config_id"]
 
     if "methodology_source_id" in payload:
         if payload["methodology_source_id"] is not None:
@@ -312,6 +324,10 @@ async def create_agent(
         raise UnprocessableEntityError(f"人设模板 {data.prompt_id} 不存在")
     if data.llm_config_id is not None:
         await _validate_llm_config(session, data.llm_config_id)
+    if data.llm_backup_config_id is not None:
+        await _validate_llm_config(session, data.llm_backup_config_id)
+        if data.llm_backup_config_id == data.llm_config_id:
+            raise UnprocessableEntityError("备用模型不能与主模型相同")
     if data.methodology_source_id is not None:
         await _validate_methodology_source(session, data.methodology_source_id)
 
@@ -323,6 +339,7 @@ async def create_agent(
         name=data.name,
         tagline=data.tagline or "",
         llm_config_id=data.llm_config_id,
+        llm_backup_config_id=data.llm_backup_config_id,
         methodology_source_id=data.methodology_source_id,
         prompt_id=data.prompt_id,
         accent_color=data.accent_color or "#38bdf8",

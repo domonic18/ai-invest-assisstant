@@ -1,10 +1,13 @@
 """AI 任务级模型绑定：任务槽位注册表、解析与管理端读写。
 
-定时 AI 任务默认共用系统默认对话模型（主模型 + ``backup_config_id`` 主备链）；
-本模块提供按任务槽位绑定独立 llm_config 条目的能力——轻任务可绑廉价模型、
-重任务绑强模型。槽位清单 ``TASK_SLOTS`` 是 catalog 唯一真相源（API/前端不硬编码）；
-绑定行的引用有效性（存在/启用/purpose=chat）写侧校验，读侧失效时
-降级系统默认并告警（未绑定本就是合法态，调度任务可用性优先）。
+任务槽位是模型选择的**唯一选择点**（2026-11-11 重构）：每槽位绑定
+主模型（必填）与可选备用，主模型冷却/失效时切备，主备皆不可用
+fail loud 抛 ``LLMConfigNotConfiguredError``（任务失败可见，不再静默
+降级默认——默认概念已消灭，llm_config 只是纯注册表）。
+
+槽位清单 ``TASK_SLOTS`` 是 catalog 唯一真相源（API/前端不硬编码），
+每槽位声明 ``purpose``（绑定校验按槽位用途匹配，decision 槽只收
+decision 条目）。绑定行引用有效性写侧校验。
 """
 
 from dataclasses import dataclass
@@ -22,10 +25,13 @@ from app.schemas.llm_config import (
     TaskBindingSlotResponse,
 )
 from app.services.admin.llm_config_service import (
+    LLMConfigNotConfiguredError,
+    LLMConfigNotFoundError,
     ResolvedLLMConfig,
-    resolve_default_llm,
     resolve_llm_by_id,
 )
+
+logger = structlog.get_logger()
 
 
 async def _get_binding(session: AsyncSession, task_key: str) -> LLMTaskBinding | None:
@@ -36,16 +42,15 @@ async def _get_binding(session: AsyncSession, task_key: str) -> LLMTaskBinding |
         )
     ).scalar_one_or_none()
 
-logger = structlog.get_logger()
-
 
 @dataclass(frozen=True)
 class TaskSlotSpec:
-    """任务槽位声明（key/中文标签/一句话说明）。"""
+    """任务槽位声明（key/中文标签/一句话说明/条目用途约束）。"""
 
     key: TASK_KEY
     label: str
     description: str
+    purpose: str = "chat"
 
 
 #: 任务槽位注册表（catalog 唯一真相源）。调整清单只改这里；
@@ -53,6 +58,11 @@ class TaskSlotSpec:
 TASK_SLOTS: dict[str, TaskSlotSpec] = {
     spec.key: spec
     for spec in (
+        TaskSlotSpec(
+            "assistant_chat",
+            "助手对话",
+            "侧边栏助手、工具二次生成与页面手动分析的系统出口（用户 BYOK 优先）",
+        ),
         TaskSlotSpec("news_score", "新闻重要度分级", "电报快讯 AI 重要度打分（高频轻任务）"),
         TaskSlotSpec("social_sentiment", "大V情绪判断", "社媒作品情绪 LLM 判断（高频轻任务）"),
         TaskSlotSpec("news_storyline", "事件故事线", "资讯事件故事线生成"),
@@ -63,6 +73,12 @@ TASK_SLOTS: dict[str, TaskSlotSpec] = {
         TaskSlotSpec("stock_daily_analysis", "自选股每日分析", "自选股 AI 每日复盘（重任务）"),
         TaskSlotSpec("limit_up_review", "涨停归因", "涨停池 AI 归因（重任务）"),
         TaskSlotSpec("chain_refresh", "产业链图谱刷新", "产业链图谱周度 AI 刷新"),
+        TaskSlotSpec(
+            "decision",
+            "判断模型",
+            "交易判断模型（systemone 协议，D23）",
+            purpose="decision",
+        ),
     )
 }
 
@@ -70,50 +86,29 @@ TASK_SLOTS: dict[str, TaskSlotSpec] = {
 async def resolve_task_llm(
     session: AsyncSession, task_key: str
 ) -> ResolvedLLMConfig:
-    """按任务槽位解析 LLM 出口：绑定条目优先，未绑定/失效降级系统默认。
+    """按任务槽位解析 LLM 出口：主健康且有效走主，否则备用，皆不可用抛错。
 
-    绑定生效时走 ``resolve_llm_by_id``（健康门 + 绑定条目自身主备链）；
-    绑定条目事后失效（删除/停用/用途变更）降级默认并告警。
+    Raises:
+        LLMConfigNotConfiguredError: 槽位未知 / 未绑定主模型 / 主备皆不可用。
     """
-    if task_key not in TASK_SLOTS:
-        logger.warning("task_binding_unknown_key", task_key=task_key)
-        return await resolve_default_llm(session)
+    spec = TASK_SLOTS.get(task_key)
+    if spec is None:
+        raise LLMConfigNotConfiguredError(f"未知任务槽位：{task_key}")
     binding = await _get_binding(session, task_key)
     if binding is None:
-        return await resolve_default_llm(session)
+        raise LLMConfigNotConfiguredError(
+            f"任务槽位「{spec.label}」未绑定主模型，请在后台「任务模型」页配置"
+        )
     try:
-        return await resolve_llm_by_id(session, binding.config_id)
-    except Exception as exc:
-        logger.warning(
-            "task_binding_degraded_to_default",
-            task_key=task_key,
-            config_id=binding.config_id,
-            error=str(exc),
+        return await resolve_llm_by_id(
+            session,
+            binding.config_id,
+            backup_config_id=binding.backup_config_id,
         )
-        return await resolve_default_llm(session)
-
-
-async def resolve_task_config_id(session: AsyncSession, task_key: str) -> int | None:
-    """按任务槽位返回绑定 llm_config 条目 id；未绑定或条目失效返回 None。
-
-    供 ``run_structured(task_key=...)`` 回填 ``config_id``：命中后由
-    ``resolve_llm_by_id`` 走健康门与主备链，语义与显式 config_id 路径一致。
-    """
-    if task_key not in TASK_SLOTS:
-        logger.warning("task_binding_unknown_key", task_key=task_key)
-        return None
-    binding = await _get_binding(session, task_key)
-    if binding is None:
-        return None
-    row = await session.get(LLMConfig, binding.config_id)
-    if row is None or not row.is_active or row.purpose != "chat":
-        logger.warning(
-            "task_binding_config_invalid",
-            task_key=task_key,
-            config_id=binding.config_id,
-        )
-        return None
-    return binding.config_id
+    except LLMConfigNotFoundError as exc:
+        raise LLMConfigNotConfiguredError(
+            f"任务槽位「{spec.label}」主备模型皆不可用：{exc}"
+        ) from exc
 
 
 async def get_task_bindings_view(session: AsyncSession) -> list[TaskBindingSlotResponse]:
@@ -121,6 +116,9 @@ async def get_task_bindings_view(session: AsyncSession) -> list[TaskBindingSlotR
     rows = (await session.execute(select(LLMTaskBinding))).scalars().all()
     bindings = {row.task_key: row for row in rows}
     config_ids = {row.config_id for row in bindings.values()}
+    config_ids.update(
+        row.backup_config_id for row in bindings.values() if row.backup_config_id
+    )
     configs: dict[int, LLMConfig] = {}
     if config_ids:
         found = (
@@ -132,18 +130,54 @@ async def get_task_bindings_view(session: AsyncSession) -> list[TaskBindingSlotR
     for spec in TASK_SLOTS.values():
         binding = bindings.get(spec.key)
         config = configs.get(binding.config_id) if binding is not None else None
+        backup = (
+            configs.get(binding.backup_config_id)
+            if binding is not None and binding.backup_config_id
+            else None
+        )
         view.append(
             TaskBindingSlotResponse(
                 task_key=spec.key,
                 label=spec.label,
                 description=spec.description,
+                purpose=spec.purpose,
                 config_id=binding.config_id if binding is not None else None,
                 config_name=config.name if config is not None else None,
                 model_name=config.model_name if config is not None else None,
+                backup_config_id=(
+                    binding.backup_config_id if binding is not None else None
+                ),
+                backup_config_name=backup.name if backup is not None else None,
+                backup_model_name=backup.model_name if backup is not None else None,
                 updated_at=binding.updated_at if binding is not None else None,
             )
         )
     return view
+
+
+async def _validate_slot_reference(
+    session: AsyncSession,
+    *,
+    task_key: str,
+    purpose: str,
+    config_id: int,
+    role: str,
+) -> None:
+    """校验槽位引用的条目：存在、启用、用途匹配槽位 purpose。"""
+    row = await session.get(LLMConfig, config_id)
+    if row is None:
+        raise UnprocessableEntityError(
+            f"任务 {task_key} 的{role}指向的 LLM 配置 {config_id} 不存在"
+        )
+    if not row.is_active:
+        raise UnprocessableEntityError(
+            f"任务 {task_key} 的{role}指向的 LLM 配置 {config_id} 已停用"
+        )
+    if row.purpose != purpose:
+        raise UnprocessableEntityError(
+            f"任务 {task_key} 要求用途为 {purpose} 的模型条目，"
+            f"配置 {config_id}（{row.name}）用途为 {row.purpose}"
+        )
 
 
 async def replace_task_bindings(
@@ -152,61 +186,72 @@ async def replace_task_bindings(
     admin_id: int,
     data: TaskBindingReplaceRequest,
 ) -> list[TaskBindingSlotResponse]:
-    """整表单全量替换绑定：config_id 非空 upsert、空删行，一事务提交。
+    """整表单全量替换绑定：主必填、备可空，逐槽位 upsert，一事务提交。
 
     Raises:
         UnprocessableEntityError: task_key 不在注册表 / 重复提交 /
-            指向的配置不存在、停用或用途非 chat。
+            主模型缺失或指向的配置不存在、停用、用途不匹配 /
+            备用等于主或指向的配置不可用。
     """
     seen: set[str] = set()
     for item in data.bindings:
-        if item.task_key not in TASK_SLOTS:
+        spec = TASK_SLOTS.get(item.task_key)
+        if spec is None:
             raise UnprocessableEntityError(f"未知任务槽位：{item.task_key}")
         if item.task_key in seen:
             raise UnprocessableEntityError(f"任务槽位重复提交：{item.task_key}")
         seen.add(item.task_key)
         if item.config_id is None:
-            continue
-        row = await session.get(LLMConfig, item.config_id)
-        if row is None:
             raise UnprocessableEntityError(
-                f"任务 {item.task_key} 指向的 LLM 配置 {item.config_id} 不存在"
+                f"任务 {item.task_key} 必须绑定主模型（解绑不再合法）"
             )
-        if not row.is_active:
-            raise UnprocessableEntityError(
-                f"任务 {item.task_key} 指向的 LLM 配置 {item.config_id} 已停用"
-            )
-        if row.purpose != "chat":
-            raise UnprocessableEntityError(
-                f"任务 {item.task_key} 要求用途为 chat 的模型条目，"
-                f"配置 {item.config_id}（{row.name}）用途为 {row.purpose}"
+        await _validate_slot_reference(
+            session,
+            task_key=item.task_key,
+            purpose=spec.purpose,
+            config_id=item.config_id,
+            role="主模型",
+        )
+        if item.backup_config_id is not None:
+            if item.backup_config_id == item.config_id:
+                raise UnprocessableEntityError(
+                    f"任务 {item.task_key} 的备用模型不能与主模型相同"
+                )
+            await _validate_slot_reference(
+                session,
+                task_key=item.task_key,
+                purpose=spec.purpose,
+                config_id=item.backup_config_id,
+                role="备用模型",
             )
 
     existing = (await session.execute(select(LLMTaskBinding))).scalars().all()
     existing_by_key = {row.task_key: row for row in existing}
-    submitted = {item.task_key: item.config_id for item in data.bindings}
+    submitted = {item.task_key: item for item in data.bindings}
 
-    for task_key, config_id in submitted.items():
-        if config_id is None:
-            if task_key in existing_by_key:
-                await session.delete(existing_by_key[task_key])
-            continue
+    for task_key, item in submitted.items():
         row = existing_by_key.get(task_key)
         if row is None:
             session.add(
                 LLMTaskBinding(
-                    task_key=task_key, config_id=config_id, updated_by=admin_id
+                    task_key=task_key,
+                    config_id=item.config_id,
+                    backup_config_id=item.backup_config_id,
+                    updated_by=admin_id,
                 )
             )
         else:
-            row.config_id = config_id
+            row.config_id = item.config_id
+            row.backup_config_id = item.backup_config_id
             row.updated_by = admin_id
 
     await session.commit()
     logger.info(
         "task_bindings_replaced",
         admin_id=admin_id,
-        bound=sorted(k for k, v in submitted.items() if v is not None),
-        unbound=sorted(k for k, v in submitted.items() if v is None),
+        slots=sorted(submitted),
+        with_backup=sorted(
+            k for k, v in submitted.items() if v.backup_config_id is not None
+        ),
     )
     return await get_task_bindings_view(session)

@@ -337,7 +337,7 @@ async def persist_market_review(
         citation_gaps,
         warning_lines,
     )
-    from app.services.admin.llm_config_service import resolve_default_llm
+    from app.services.admin.llm_task_binding_service import resolve_task_llm
     from app.services.review import market_review_generator
 
     resolved, error = _parse_trade_date(trade_date)
@@ -350,7 +350,7 @@ async def persist_market_review(
         sections = apply_sentinels(sections, gaps)
 
     async with AsyncSessionLocal() as session:
-        cfg = await resolve_default_llm(session)
+        cfg = await resolve_task_llm(session, "market_daily_review")
         response = await market_review_generator.persist_market_review_result(
             session,
             trade_date=resolved,
@@ -395,7 +395,7 @@ async def persist_limit_up_attribution(
             6 位代码，必须来自 get_limit_up_pool 返回的明细；一股只属一组。
         stock_themes: 可选，个股题材标签映射（6 位代码 → 1-3 个 2-8 字题材标签）。
     """
-    from app.services.admin.llm_config_service import resolve_default_llm
+    from app.services.admin.llm_task_binding_service import resolve_task_llm
     from app.services.review import limit_up_ai_service
     from app.services.review.market_review_service import (
         NonTradingDayError,
@@ -423,7 +423,7 @@ async def persist_limit_up_attribution(
             stock_themes=stock_themes or {},
         )
         try:
-            cfg = await resolve_default_llm(session)
+            cfg = await resolve_task_llm(session, "limit_up_review")
             saved = await limit_up_ai_service.persist_attribution_result(
                 session,
                 resolved,

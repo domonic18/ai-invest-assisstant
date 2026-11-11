@@ -76,15 +76,6 @@ async def delete_llm_config(
     await LLMConfigService(session).delete_config(config_id)
 
 
-@llm_router.post("/{config_id}/set-default", response_model=LLMConfigResponse)
-async def set_default_llm_config(
-    config_id: int,
-    session: Annotated[AsyncSession, Depends(get_db)],
-) -> LLMConfigResponse:
-    """将某条 LLM 配置设为全局默认。"""
-    return await LLMConfigService(session).set_default_config(config_id)
-
-
 @llm_router.post("/{config_id}/test", response_model=LLMConfigTestResponse)
 async def test_llm_config(
     config_id: int,
@@ -136,7 +127,7 @@ async def replace_task_bindings(
     session: Annotated[AsyncSession, Depends(get_db)],
     admin: Annotated[User, Depends(get_current_admin_user)],
 ) -> list[TaskBindingSlotResponse]:
-    """整表单保存任务绑定（非空 upsert、空删行）。"""
+    """整表单保存任务绑定（逐槽位 upsert，主必填、备可空）。"""
     return await llm_task_binding_service.replace_task_bindings(
         session, admin_id=admin.id, data=data
     )
