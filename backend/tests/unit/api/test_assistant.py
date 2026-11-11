@@ -168,6 +168,7 @@ class TestRunStreamQuotaRefused:
         assert "event: end" in body
 
 
+@pytest.mark.unit
 class TestRunStream:
     def test_rejects_non_human_input_message(self, assistant_client) -> None:
         client, _ = assistant_client
@@ -180,6 +181,165 @@ class TestRunStream:
                 json={"input": {"messages": [{"type": "ai", "content": "x"}]}},
             )
         assert response.status_code == 422
+
+    @staticmethod
+    def _stream_patches(agent: MagicMock):
+        from contextlib import ExitStack
+
+        stack = ExitStack()
+        stack.enter_context(
+            patch(
+                "app.services.assistant.assistant_service.AssistantService.get_session",
+                AsyncMock(return_value=_session_row()),
+            )
+        )
+        stack.enter_context(
+            patch(
+                "app.services.assistant.assistant_service.AssistantService.custom_skill_index_lines",
+                AsyncMock(return_value=[]),
+            )
+        )
+        stack.enter_context(
+            patch(
+                "app.api.v1.assistant.runs.resolve_llm",
+                AsyncMock(
+                    return_value=(
+                        SimpleNamespace(provider="openai", protocol="openai"),
+                        "system",
+                    )
+                ),
+            )
+        )
+        stack.enter_context(
+            patch(
+                "app.api.v1.assistant.runs.get_assistant_agent",
+                AsyncMock(return_value=agent),
+            )
+        )
+        stack.enter_context(
+            patch(
+                "app.api.v1.assistant.runs.finalize_run",
+                AsyncMock(return_value=None),
+            )
+        )
+        return stack
+
+    def test_tool_cancellation_stub_accepted_and_replayed(
+        self, assistant_client
+    ) -> None:
+        """assistant-ui 中断 tool call 后补发的取消桩须回放为 ToolMessage。
+
+        拒收会 422 → langgraph-sdk 静默结束 → 线程假死（2026-11-10 事故）。
+        """
+        client, _ = assistant_client
+        captured: dict = {}
+
+        async def _fake_astream(stream_input, config, **kwargs):
+            captured["input"] = stream_input
+            captured["config"] = config
+            yield (), "messages", (HumanMessage(content="ok", id="a1"), {})
+
+        agent = MagicMock()
+        agent.astream = _fake_astream
+        with self._stream_patches(agent):
+            response = client.post(
+                f"/api/v1/assistant/threads/{uuid.uuid4()}/runs/stream",
+                json={
+                    "input": {
+                        "messages": [
+                            {
+                                "type": "tool",
+                                "name": "persist_chain_analysis",
+                                "tool_call_id": "call-1",
+                                "content": '{"cancelled":true}',
+                                "status": "error",
+                            },
+                            {"type": "human", "content": "继续"},
+                        ]
+                    }
+                },
+            )
+        assert response.status_code == 200
+        messages = captured["input"]["messages"]
+        assert isinstance(messages[0], ToolMessage)
+        assert messages[0].tool_call_id == "call-1"
+        assert messages[0].status == "error"
+        assert messages[0].name == "persist_chain_analysis"
+        assert isinstance(messages[1], HumanMessage)
+        assert messages[1].content == "继续"
+        assert "event: end" in response.text
+
+    def test_tool_message_missing_tool_call_id_422(self, assistant_client) -> None:
+        client, _ = assistant_client
+        agent = MagicMock()
+        with self._stream_patches(agent):
+            response = client.post(
+                f"/api/v1/assistant/threads/{uuid.uuid4()}/runs/stream",
+                json={
+                    "input": {
+                        "messages": [
+                            {"type": "tool", "content": "x"},
+                            {"type": "human", "content": "hi"},
+                        ]
+                    }
+                },
+            )
+        assert response.status_code == 422
+
+    def test_recursion_limit_override_and_time_budget_notice(
+        self, assistant_client
+    ) -> None:
+        """步数硬顶进 astream config（覆盖 deepagents 内置 9999）；墙钟耗尽
+        优雅收尾：合成预算提示消息 + end，checkpoint 语义可「继续」续跑。"""
+        client, _ = assistant_client
+        captured: dict = {}
+
+        class _TinyTimeBudgetSettings:
+            assistant_run_max_steps = 500
+            assistant_run_max_seconds = 0.0
+
+        async def _fake_astream(stream_input, config, **kwargs):
+            captured["config"] = config
+            yield (), "custom", {"type": "noop"}
+
+        agent = MagicMock()
+        agent.astream = _fake_astream
+        with self._stream_patches(agent), patch(
+            "app.api.v1.assistant.runs.get_settings",
+            return_value=_TinyTimeBudgetSettings(),
+        ):
+            response = client.post(
+                f"/api/v1/assistant/threads/{uuid.uuid4()}/runs/stream",
+                json={"input": {"messages": [{"type": "human", "content": "深度任务"}]}},
+            )
+        assert response.status_code == 200
+        assert captured["config"]["recursion_limit"] == 500
+        assert "预算上限" in response.text
+        assert "「继续」" in response.text
+        assert "event: end" in response.text
+
+    def test_graph_recursion_error_emits_budget_notice(
+        self, assistant_client
+    ) -> None:
+        from langgraph.errors import GraphRecursionError
+
+        client, _ = assistant_client
+
+        async def _fake_astream(*args, **kwargs):
+            yield (), "messages", (HumanMessage(content="部分输出", id="p1"), {})
+            raise GraphRecursionError("recursion limit reached")
+
+        agent = MagicMock()
+        agent.astream = _fake_astream
+        with self._stream_patches(agent):
+            response = client.post(
+                f"/api/v1/assistant/threads/{uuid.uuid4()}/runs/stream",
+                json={"input": {"messages": [{"type": "human", "content": "深度任务"}]}},
+            )
+        assert response.status_code == 200
+        assert "预算上限" in response.text
+        assert "「继续」" in response.text
+        assert "event: end" in response.text
 
     def test_page_context_prefixes_user_message(self) -> None:
         from app.api.v1.assistant.page_context import _with_page_context

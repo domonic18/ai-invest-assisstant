@@ -109,6 +109,17 @@ class Settings(BaseSettings):
     llm_failover_cooldown_seconds: int = 600  # 额度/限流类失败冷却（秒）；过期自愈式重探主模型
     llm_failover_connect_cooldown_seconds: int = 300  # 连接类失败（超时/断流）短冷却（秒）；瞬时抖动不应长罚
 
+    # 助手对话出口专属超时：流式语义下是相邻 chunk 的最大间隔（非总时长）。
+    # 首 token 迟到或流中途死等超过该值即抛超时 → 连接类冷却 → 切备用，
+    # 兜住「慢但成功」（如单次调用 200s+ 迟到）盲区；全局 300s 抓不住这类
+    assistant_llm_read_timeout: float = 240.0
+
+    # 助手单次运行执行预算（调用点 config 覆盖 deepagents 内置 recursion_limit=9999）。
+    # 任一耗尽即优雅收尾：合成预算提示消息、checkpoint 保留已完成进度，
+    # 用户发「继续」从暂停处续跑；防无界循环与超长挂起（行业默认 25 起步）
+    assistant_run_max_steps: int = 500
+    assistant_run_max_seconds: float = 2700.0
+
     # 采集 worker 内第三方 HTTP 库（akshare 等）未显式传 timeout 时的兜底值。
     # 通过 patch requests.Session.request 注入；2026-09-23 事故中 akshare 的
     # requests 调用因无超时在 TLS 握手处永久黑洞。

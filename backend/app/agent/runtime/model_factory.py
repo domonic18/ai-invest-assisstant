@@ -35,6 +35,7 @@ def build_langchain_model(
     disable_thinking: bool = False,
     meter: bool = True,
     max_tokens: int | None = None,
+    read_timeout: float | None = None,
 ) -> BaseChatModel:
     """把 LLM 配置（系统或 BYOK）转换为 LangChain 模型实例。
 
@@ -49,6 +50,9 @@ def build_langchain_model(
         max_tokens: anthropic 协议输出预算覆盖；缺省 ``ANTHROPIC_MAX_TOKENS``。
             thinking 与输出共享该预算，预算过小会被长思考烧满导致空文本/
             截断（MiniMax M3.1-Flash、kimi k3.1-pro 实测），故默认即给足。
+        read_timeout: 出口专属读超时（秒）覆盖；缺省 ``llm_http_read_timeout``。
+            流式语义下为相邻 chunk 最大间隔。助手出口用更短值兜「慢但成功」
+            盲区（超时 → 连接类冷却 → 切备用）。
 
     Returns:
         protocol=anthropic（Kimi coding 等）→ ``ChatAnthropic``；
@@ -58,10 +62,13 @@ def build_langchain_model(
     api_key = SecretStr(cfg.api_key)
     # SDK 会自行拼接端点路径，粘贴了完整端点的 base_url 须先归一化
     base_url = normalize_api_base(str(cfg.base_url)) if cfg.base_url else None
+    effective_read_timeout = (
+        read_timeout if read_timeout is not None else settings.llm_http_read_timeout
+    )
     # connect 与 read 分离：建连黑洞不应拖满读超时
     openai_timeout = httpx.Timeout(
         connect=settings.llm_http_connect_timeout,
-        read=settings.llm_http_read_timeout,
+        read=effective_read_timeout,
         write=120.0,
         pool=10.0,
     )
@@ -86,7 +93,7 @@ def build_langchain_model(
             "api_key": api_key,
             "base_url": base_url,
             "max_tokens": max_tokens or ANTHROPIC_MAX_TOKENS,
-            "timeout": settings.llm_http_read_timeout,
+            "timeout": effective_read_timeout,
             "max_retries": settings.llm_max_retries,
         }
         if callbacks:
