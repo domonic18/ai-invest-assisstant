@@ -185,7 +185,10 @@ async def _build_agent(
             )
         ]
     agent = create_deep_agent(
-        model=build_langchain_model(cfg),
+        # 助手出口专属读超时：流式相邻 chunk 间隔上限，兜「慢但成功」盲区
+        model=build_langchain_model(
+            cfg, read_timeout=get_settings().assistant_llm_read_timeout
+        ),
         tools=list(tools),
         system_prompt=load_assistant_system_prompt(),
         middleware=[TodoListMiddleware()],
