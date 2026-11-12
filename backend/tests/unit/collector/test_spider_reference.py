@@ -151,6 +151,42 @@ class TestSinaStockListCollector:
         assert bj["industry_level_3"] is None
 
     @pytest.mark.asyncio
+    async def test_collect_merges_star_market_listing_date(self) -> None:
+        """科创板名单独立成表，只取主板会漏掉 688/689 的上市日期。"""
+        collector = SinaStockListCollector(
+            {"source": "sina", "data_type": "stock_list", "sw_request_delay": 0}
+        )
+        base_df = pd.DataFrame([{"code": "688001", "name": "华兴源创"}])
+        main_df = pd.DataFrame(
+            [{"证券代码": "600000", "公司全称": "浦发银行", "上市日期": "1999-11-10"}]
+        )
+        star_df = pd.DataFrame(
+            [
+                {
+                    "证券代码": "688001",
+                    "公司全称": "苏州华兴源创科技股份有限公司",
+                    "上市日期": "2019-07-22",
+                }
+            ]
+        )
+
+        def _sh(symbol: str = "主板A股") -> pd.DataFrame:
+            return star_df if symbol == "科创板" else main_df
+
+        with (
+            patch("akshare.stock_info_a_code_name", return_value=base_df),
+            patch("akshare.stock_info_sh_name_code", side_effect=_sh),
+            patch("akshare.stock_info_sz_name_code", return_value=pd.DataFrame()),
+            patch("akshare.stock_info_bj_name_code", return_value=pd.DataFrame()),
+            patch("akshare.sw_index_first_info", return_value=pd.DataFrame()),
+        ):
+            raw = await collector.collect()
+
+        item = next(r for r in raw if r["stock_code"] == "688001")
+        assert item["listing_date"] == datetime.date(2019, 7, 22)
+        assert item["full_name"] == "苏州华兴源创科技股份有限公司"
+
+    @pytest.mark.asyncio
     async def test_collect_tolerates_source_failures(self) -> None:
         collector = SinaStockListCollector(
             {"source": "sina", "data_type": "stock_list", "sw_request_delay": 0}
