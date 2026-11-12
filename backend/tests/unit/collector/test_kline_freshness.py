@@ -18,7 +18,7 @@ from collector.spiders.sina_etf_kline import SinaEtfKlineCollector
 _EXPECTED = date(2026, 9, 4)
 _TODAY = date(2026, 9, 5)
 _CN_TZ = ZoneInfo("Asia/Shanghai")
-_WATCHLIST = ["002900", "600519"]
+_UNIVERSE = ["002900", "600519"]
 # 指数/ETF/A50/部分自选股初始齐全的基准集合（002900 留给用例控制）
 _BASE_FRESH = {*INDEX_KLINE_CODES, *SinaEtfKlineCollector.symbols, A50_CODE, "600519"}
 
@@ -39,9 +39,9 @@ def _enter_common_patches(
     now_hour: int = 11,
     fresh: set[str],
     rerun: AsyncMock | None = None,
-    watchlist: list[str] | None = None,
+    universe: list[str] | None = None,
 ) -> AsyncMock:
-    """登记公共 patch：日历/时钟/自选股/日K存在性/会话工厂；返回 rerun mock。"""
+    """登记公共 patch：日历/时钟/采集宇宙/日K存在性/会话工厂；返回 rerun mock。"""
     stack.enter_context(
         patch(
             "collector.spiders.kline_freshness.latest_trading_day",
@@ -61,8 +61,8 @@ def _enter_common_patches(
     )
     stack.enter_context(
         patch(
-            "collector.spiders.kline_freshness.KlineFreshnessCollector._watchlist_codes",
-            new=AsyncMock(return_value=_WATCHLIST if watchlist is None else watchlist),
+            "collector.spiders.kline_freshness.KlineFreshnessCollector._universe_codes",
+            new=AsyncMock(return_value=_UNIVERSE if universe is None else universe),
         )
     )
 
@@ -192,7 +192,7 @@ class TestKlineFreshnessCollector:
                 stack,
                 now_hour=21,
                 fresh=_BASE_FRESH | {"002900"},
-                watchlist=["002900", "600519", "00700"],
+                universe=["002900", "600519", "00700"],
             )
             result = await collector.run()
 
@@ -210,7 +210,7 @@ class TestKlineFreshnessCollector:
                 stack,
                 now_hour=18,
                 fresh=_BASE_FRESH | {"002900"},
-                watchlist=["002900", "600519", "00700"],
+                universe=["002900", "600519", "00700"],
             )
             result = await collector.run()
 
@@ -238,7 +238,7 @@ class TestKlineFreshnessCollector:
                 now_hour=21,
                 fresh=fresh,
                 rerun=rerun,
-                watchlist=["002900", "600519", "00700"],
+                universe=["002900", "600519", "00700"],
             )
             result = await collector.run()
 

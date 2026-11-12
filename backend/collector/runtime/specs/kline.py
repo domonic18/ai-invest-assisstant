@@ -22,9 +22,9 @@ SPECS: tuple[TaskSpec, ...] = (
     TaskSpec(
         name="watchlist-kline-daily",
         label="自选股日 K 补采",
-        description="每日补采全部自选股日 K，保证自选页图表数据完整",
+        description="每日补采日 K 采集宇宙（自选股 ∪ Agent 生效标的）日 K，保证图表数据完整",
         data_type="watchlist_kline_daily",
-        # 缺省 symbols = 全部自选股（见 sina_kline._fetch_watchlist_codes）
+        # 缺省 symbols = 日 K 采集宇宙（见 kline_universe.fetch_kline_universe_codes）
         collectors={
             "sina": "collector.spiders.sina_kline:SinaKlineCollector",
         },

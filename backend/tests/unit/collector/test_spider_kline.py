@@ -137,6 +137,37 @@ class TestSinaKlineCollector:
 
         assert codes == ["000001", "600519"]
 
+    @pytest.mark.asyncio
+    async def test_collect_defaults_to_kline_universe(self) -> None:
+        """缺省采集集 = 日 K 采集宇宙（自选 ∪ Agent 生效标的），非仅自选股。"""
+        collector = SinaKlineCollector(
+            {"source": "sina", "data_type": "quote_kline_stock_daily"}
+        )
+        mock_df = pd.DataFrame(
+            [
+                {
+                    "date": "2026-10-23",
+                    "open": 10.5,
+                    "high": 11.0,
+                    "low": 10.2,
+                    "close": 10.8,
+                    "volume": 27233830,
+                }
+            ]
+        )
+        with (
+            patch(
+                "collector.spiders.sina_kline.fetch_kline_universe_codes",
+                AsyncMock(return_value=["002837"]),
+            ) as universe_mock,
+            patch("akshare.stock_zh_a_daily", return_value=mock_df) as mock_fetch,
+        ):
+            raw = await collector.collect()
+
+        universe_mock.assert_awaited_once()
+        mock_fetch.assert_called_once_with(symbol="sz002837")
+        assert [item["stock_code"] for item in raw] == ["002837"]
+
 
 @pytest.mark.unit
 class TestSinaIndexKlineCollector:

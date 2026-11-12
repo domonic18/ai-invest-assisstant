@@ -118,6 +118,10 @@ class StockKlineResponse(CamelModel):
     bars: list[StockKlineBar]
     # 最近交易日（交易日历权威），前端据此判定 K 线是否落后并自动补采
     latest_trade_date: date
+    # 库内历史是否被截断（不足健康根数），前端据此自动补采全历史
+    needs_backfill: bool
+    # 健康历史的最少根数（补采轮询的达标线，由后端给出避免两端常量漂移）
+    min_healthy_bars: int
 
 
 class StockIntradayPoint(CamelModel):

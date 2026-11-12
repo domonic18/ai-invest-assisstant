@@ -34,7 +34,7 @@ export function KlineEmptyState({ isIntraday, height, collectKline }: KlineEmpty
             <Button
               size="small"
               icon={<SyncOutlined />}
-              onClick={() => collectKline.mutate(undefined)}
+              onClick={() => collectKline.mutate({ mode: 'empty' })}
             >
               补采 K 线数据
             </Button>

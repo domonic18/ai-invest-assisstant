@@ -115,6 +115,12 @@ async def fetch_daily_bars(
     return list(result.scalars().all())
 
 
+async def count_daily_bars(session: AsyncSession, code: str) -> int:
+    """日 K 总根数（不受读取窗口限制），用于判断历史是否被截断。"""
+    stmt = select(func.count()).select_from(KlineDaily).where(KlineDaily.stock_code == code)
+    return int(await session.scalar(stmt) or 0)
+
+
 async def fetch_daily_bars_multi(
     session: AsyncSession,
     codes: list[str],

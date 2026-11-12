@@ -107,16 +107,21 @@ def _fetch_exchange_details(ak: Any) -> dict[str, dict[str, Any]]:
     """合并上交所/深交所/北交所官方股票列表的上市详情。"""
     details: dict[str, dict[str, Any]] = {}
 
-    try:
-        sh_df = ak.stock_info_sh_name_code()
-        for _, row in sh_df.iterrows():
-            code = str(row["证券代码"]).strip().zfill(6)
-            details[code] = {
-                "full_name": to_optional_str(row.get("公司全称")),
-                "listing_date": parse_date(row.get("上市日期")),
-            }
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("fetch SSE stock list failed: %s", exc)
+    # 上交所名单分主板与科创板两张表，只取主板会漏掉全部 688/689 代码的上市日期
+    for sh_symbol in ("主板A股", "科创板"):
+        try:
+            sh_df = ak.stock_info_sh_name_code(symbol=sh_symbol)
+            for _, row in sh_df.iterrows():
+                code = str(row["证券代码"]).strip().zfill(6)
+                details.setdefault(
+                    code,
+                    {
+                        "full_name": to_optional_str(row.get("公司全称")),
+                        "listing_date": parse_date(row.get("上市日期")),
+                    },
+                )
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("fetch SSE stock list (%s) failed: %s", sh_symbol, exc)
 
     try:
         sz_df = ak.stock_info_sz_name_code()

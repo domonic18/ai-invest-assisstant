@@ -858,6 +858,43 @@ class TestPriceAnchors:
         assert anchors["002913"]["ma5"] == 12.0
 
     @pytest.mark.asyncio
+    async def test_sina_fallback_stores_full_window_but_returns_anchor_rows(self) -> None:
+        """锚点兜底现拉落库整段历史（个股页可读），返回值只给锚点所需末几根。"""
+        import pandas as pd
+
+        base = date(2025, 1, 1)
+        rows = [
+            {
+                "date": date.fromordinal(base.toordinal() + i),
+                "open": 10.0 + i,
+                "high": 11.0 + i,
+                "low": 9.0 + i,
+                "close": 10.0 + i,
+                "volume": 1000,
+                "amount": 10000.0,
+                "turnover": 0.01,
+            }
+            for i in range(300)
+        ]
+        session = AsyncMock()
+        with (
+            patch("akshare.stock_zh_a_daily", return_value=pd.DataFrame(rows)),
+            patch(
+                "app.services.trading.agent_plan_input.upsert_daily_bars",
+                AsyncMock(),
+            ) as upsert_mock,
+        ):
+            anchor_rows = await agent_plan_input._fetch_and_store_sina_daily(
+                session, "002837"
+            )
+
+        stored = upsert_mock.await_args.args[1]
+        assert len(stored) == 250
+        assert stored[-1]["trade_date"] == date.fromordinal(base.toordinal() + 299)
+        assert len(anchor_rows) == 6
+        assert anchor_rows[-1]["close"] == 10.0 + 299
+
+    @pytest.mark.asyncio
     async def test_fetch_failure_reports_missing(self) -> None:
         session = AsyncMock()
         with (
