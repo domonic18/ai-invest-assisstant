@@ -46,6 +46,10 @@ export interface StockKline {
   bars: StockKlineBar[]
   /** 最近交易日（交易日历权威），前端据此判定 K 线落后并自动补采 */
   latestTradeDate: string
+  /** 库内历史是否被截断（不足健康根数），前端据此自动补采全历史 */
+  needsBackfill: boolean
+  /** 健康历史的最少根数（补采轮询达标线，由后端给出） */
+  minHealthyBars: number
 }
 
 export interface StockIntradayPoint {
@@ -218,6 +222,10 @@ export interface ApiStockKlineResponse {
   bars: ApiStockKlineBar[]
   /** 最近交易日（交易日历权威），前端据此判定 K 线落后并自动补采 */
   latestTradeDate: string
+  /** 库内历史是否被截断（不足健康根数），前端据此自动补采全历史 */
+  needsBackfill: boolean
+  /** 健康历史的最少根数（补采轮询达标线，由后端给出） */
+  minHealthyBars: number
 }
 
 export interface ApiStockIntradayPoint {
