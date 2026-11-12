@@ -118,6 +118,102 @@ class TestCninfoFinancialReportCollector:
         assert raw[0]["source_url"].endswith("test.PDF")
 
     @pytest.mark.asyncio
+    async def test_collect_drops_summary_when_same_day_report_exists(self) -> None:
+        """同日同类型的年报正文与摘要会互相覆盖存储，只留正文。"""
+        collector = CninfoFinancialReportCollector(
+            {
+                "source": "cninfo",
+                "data_type": "financial_report",
+                "max_pages": 1,
+                "report_types": ["annual"],
+            }
+        )
+        query_response = {
+            "announcements": [
+                {
+                    "announcementTitle": "2023年年度报告",
+                    "announcementTime": "2024-03-15",
+                    "adjunctUrl": "finalpage/2024-03-15/full.PDF",
+                },
+                {
+                    "announcementTitle": "2023年年度报告摘要",
+                    "announcementTime": "2024-03-15",
+                    "adjunctUrl": "finalpage/2024-03-15/summary.PDF",
+                },
+            ],
+            "totalPages": 1,
+        }
+
+        def _post(url: str, **kwargs: object) -> MagicMock:
+            resp = MagicMock()
+            if "topSearch" in url:
+                resp.json.return_value = [{"code": "000001", "orgId": "org123"}]
+            else:
+                resp.json.return_value = query_response
+            return resp
+
+        pdf_response_mock = MagicMock()
+        pdf_response_mock.content = b"%PDF-1.4 fake pdf"
+
+        mock_client = AsyncMock()
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=None)
+        mock_client.post = AsyncMock(side_effect=_post)
+        mock_client.get = AsyncMock(return_value=pdf_response_mock)
+
+        with patch("httpx.AsyncClient", return_value=mock_client):
+            raw = await collector.collect(symbols=["000001"])
+
+        assert len(raw) == 1
+        assert raw[0]["title"] == "2023年年度报告"
+        assert raw[0]["source_url"].endswith("full.PDF")
+
+    @pytest.mark.asyncio
+    async def test_collect_keeps_summary_without_same_day_report(self) -> None:
+        """没有同日正文时，摘要仍要保留。"""
+        collector = CninfoFinancialReportCollector(
+            {
+                "source": "cninfo",
+                "data_type": "financial_report",
+                "max_pages": 1,
+                "report_types": ["annual"],
+            }
+        )
+        query_response = {
+            "announcements": [
+                {
+                    "announcementTitle": "2023年年度报告摘要",
+                    "announcementTime": "2024-03-15",
+                    "adjunctUrl": "finalpage/2024-03-15/summary.PDF",
+                }
+            ],
+            "totalPages": 1,
+        }
+
+        def _post(url: str, **kwargs: object) -> MagicMock:
+            resp = MagicMock()
+            if "topSearch" in url:
+                resp.json.return_value = [{"code": "000001", "orgId": "org123"}]
+            else:
+                resp.json.return_value = query_response
+            return resp
+
+        pdf_response_mock = MagicMock()
+        pdf_response_mock.content = b"%PDF-1.4 fake pdf"
+
+        mock_client = AsyncMock()
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=None)
+        mock_client.post = AsyncMock(side_effect=_post)
+        mock_client.get = AsyncMock(return_value=pdf_response_mock)
+
+        with patch("httpx.AsyncClient", return_value=mock_client):
+            raw = await collector.collect(symbols=["000001"])
+
+        assert len(raw) == 1
+        assert raw[0]["title"] == "2023年年度报告摘要"
+
+    @pytest.mark.asyncio
     async def test_store_uses_financial_report_store(self) -> None:
         collector = CninfoFinancialReportCollector(
             {"source": "cninfo", "data_type": "financial_report"}

@@ -52,6 +52,46 @@ _CNINFO_QUERY_URL = "http://www.cninfo.com.cn/new/hisAnnouncement/query"
 _CNINFO_TOPSEARCH_URL = "http://www.cninfo.com.cn/new/information/topSearch/query"
 _CNINFO_DOWNLOAD_BASE = "http://static.cninfo.com.cn/"
 
+_SUMMARY_TITLE_MARKER = "摘要"
+
+
+def _is_summary_title(title: str | None) -> bool:
+    """公告标题是否为「XX 年报摘要」这类浓缩件。"""
+    return bool(title) and _SUMMARY_TITLE_MARKER in title
+
+
+def _select_announcements(announcements: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """同一披露日同时存在年报正文与年报摘要时，只保留正文。
+
+    巨潮「年报」类目下同一天会挂两份文件：《XX 年年度报告》与《XX 年年度报告
+    摘要》。存储层按 (代码, 披露日, 财报类型) 定位对象，两份文件互相覆盖，
+    最终留下的是摘要（列表里排更后），全文分析只剩几千字的浓缩版。故在采集
+    边界丢弃与正文同日同类型的摘要件；只有摘要、没有正文的公告仍然保留。
+    """
+    full_dates = {
+        publish_date
+        for publish_date in (
+            _parse_date(_str(a.get("announcementTime")))
+            for a in announcements
+            if not _is_summary_title(_str(a.get("announcementTitle")))
+        )
+        if publish_date is not None
+    }
+    if not full_dates:
+        return list(announcements)
+
+    kept: list[dict[str, Any]] = []
+    for announcement in announcements:
+        title = _str(announcement.get("announcementTitle"))
+        if not _is_summary_title(title):
+            kept.append(announcement)
+            continue
+        publish_date = _parse_date(_str(announcement.get("announcementTime")))
+        if publish_date is not None and publish_date in full_dates:
+            continue
+        kept.append(announcement)
+    return kept
+
 
 class CninfoFinancialReportCollector(BaseCollector):
     """巨潮资讯个股财报文件采集器。
@@ -133,7 +173,7 @@ class CninfoFinancialReportCollector(BaseCollector):
                         max_pages=self.max_pages,
                     )
 
-                    for announcement in announcements:
+                    for announcement in _select_announcements(announcements):
                         pdf_url = _pdf_url(announcement)
                         if not pdf_url:
                             continue
