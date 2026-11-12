@@ -208,18 +208,24 @@ export function StockChartView({
     ? intradayData != null && intradayData.points.length > 0
     : chartData != null && chartData.bars.length > 0
 
-  // K 线缺数据/落后最近交易日时自动补采（仅日 K 视图做落后判定，周/月聚合桶日期不可比）
+  // K 线缺数据/历史过浅/落后最近交易日时自动补采（仅日 K 视图做落后与历史深度判定，周/月聚合桶日期不可比）
   const dailyView = !isIntraday && period === 'daily'
   const latestTradeDateForDisplay = dailyView ? (klineData?.latestTradeDate ?? '') : ''
-  const { collect: collectKline, behind: klineBehind, suppressed: publishPending } = useAutoCollectKline(
-    code,
-    {
-      ready: !isIntraday && !klineLoading,
-      missing: !isIntraday && !klineLoading && !hasData,
-      lastBarDate: dailyView ? klineData?.bars[klineData.bars.length - 1]?.date : undefined,
-      latestTradeDate: dailyView ? klineData?.latestTradeDate : undefined,
-    },
-  )
+  const minHealthyBars = dailyView ? (klineData?.minHealthyBars ?? 60) : 60
+  const {
+    collect: collectKline,
+    behind: klineBehind,
+    suppressed: publishPending,
+    truncated: klineTruncated,
+  } = useAutoCollectKline(code, {
+    ready: !isIntraday && !klineLoading,
+    missing: !isIntraday && !klineLoading && !hasData,
+    lastBarDate: dailyView ? klineData?.bars[klineData.bars.length - 1]?.date : undefined,
+    latestTradeDate: dailyView ? klineData?.latestTradeDate : undefined,
+    insufficient: dailyView ? klineData?.needsBackfill : undefined,
+    minHealthyBars: dailyView ? klineData?.minHealthyBars : undefined,
+    firstBarDate: dailyView ? klineData?.bars[0]?.date : undefined,
+  })
 
   return (
     <div
@@ -257,7 +263,41 @@ export function StockChartView({
               type="link"
               size="small"
               icon={<SyncOutlined />}
-              onClick={() => collectKline.mutate(latestTradeDateForDisplay)}
+              onClick={() =>
+                collectKline.mutate({ mode: 'freshness', notBefore: latestTradeDateForDisplay })
+              }
+            >
+              立即补采
+            </Button>
+          )}
+        </div>
+      )}
+
+      {klineTruncated && (
+        <div
+          className="flex items-center justify-between gap-2 border-b px-3 py-1.5 text-xs"
+          style={{ borderColor: BORDER_COLOR }}
+        >
+          <span className={collectKline.isError ? 'text-red-400' : 'text-[#8c8c8c]'}>
+            {collectKline.isError
+              ? (collectKline.error as Error).message
+              : `历史数据不足（当前 ${klineData?.bars.length ?? 0} 根，目标 ${minHealthyBars} 根），${
+                  collectKline.isPending ? '正在自动补采全历史...' : '历史可能被截断'
+                }`}
+          </span>
+
+          {!collectKline.isPending && (
+            <Button
+              type="link"
+              size="small"
+              icon={<SyncOutlined />}
+              onClick={() =>
+                collectKline.mutate({
+                  mode: 'depth',
+                  minBars: minHealthyBars,
+                  beforeFirstBarDate: klineData?.bars[0]?.date,
+                })
+              }
             >
               立即补采
             </Button>
