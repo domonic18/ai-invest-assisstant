@@ -44,6 +44,8 @@ _MANUAL_REMOVED_WINDOW_DAYS = 14
 _MEMORY_TOP_N = 20
 #: 锚点日 K 根数（末 5 根收盘算 MA5，再留一根昨收）
 _ANCHOR_BAR_LIMIT = 6
+#: 锚点兜底现拉时的落库根数（末 250 根 ≈ 一年历史，补足个股页历史 K 线）
+_ANCHOR_STORE_BAR_LIMIT = 250
 #: 新浪日 K 单标的现拉超时（秒）——超时按缺失处理，不阻塞计划生成
 _ANCHOR_FETCH_TIMEOUT_SECONDS = 30.0
 #: 长线三支柱：趋势筛选候选条数上限
@@ -149,7 +151,10 @@ def _anchor_from_rows(rows: list[dict[str, Any]]) -> dict[str, Any] | None:
 
 
 async def _fetch_and_store_sina_daily(session: AsyncSession, code: str) -> list[dict[str, Any]]:
-    """现拉新浪日 K 末 N 根并 upsert 落库（锚点兜底补数，顺手补采集缺口）。
+    """现拉新浪日 K 并 upsert 落库（锚点兜底补数，顺手补采集缺口）。
+
+    落库末 250 根（约一年历史），供个股页历史 K 线直接可读；返回值只给末
+    ``_ANCHOR_BAR_LIMIT`` 根供锚点计算。
 
     调用方捕获一切异常按缺失处理；单标的超时/源失败不阻塞计划生成。
     """
@@ -163,7 +168,7 @@ async def _fetch_and_store_sina_daily(session: AsyncSession, code: str) -> list[
     if df is None or df.empty:
         return []
     rows: list[dict[str, Any]] = []
-    for _, row in df.tail(_ANCHOR_BAR_LIMIT).iterrows():
+    for _, row in df.tail(_ANCHOR_STORE_BAR_LIMIT).iterrows():
         trade_date = row.get("date")
         if isinstance(trade_date, datetime):
             trade_date = trade_date.date()
@@ -187,7 +192,7 @@ async def _fetch_and_store_sina_daily(session: AsyncSession, code: str) -> list[
             }
         )
     await upsert_daily_bars(session, rows)
-    return rows
+    return rows[-_ANCHOR_BAR_LIMIT:]
 
 
 async def _price_anchors(
@@ -196,7 +201,7 @@ async def _price_anchors(
     """候选标的价格锚点（区间/止损的锚点值由代码供给，治幻觉价格根因）。
 
     库内日 K 优先；缺失标的现拉新浪日 K 并 upsert（候选多来自涨停池/异动池，
-    不在 watchlist 采集宇宙内）。仍无锚点的标的随 missing 返回，由调用方
+    不在日 K 采集宇宙内）。仍无锚点的标的随 missing 返回，由调用方
     从输入剔除——无锚点禁止出计划（fail-fast 数据契约）。
     """
     unique = sorted(set(codes))
