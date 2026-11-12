@@ -3,10 +3,11 @@
 收盘后数据源（新浪）发布当日 bar 存在滞后，个股/ETF 采集调度无晚间重跑档，
 当日 bar 可能最晚要到下个交易日才补上且无人感知。本任务在交易日晚间运行：
 
-1. 以 ``latest_trading_day()`` 为期望日，逐个核对自选股/指数/ETF/A50 是否有
-   对应日 K（与采集集同源，符号清单直接复用各采集器的单一真相源）；
+1. 以 ``latest_trading_day()`` 为期望日，逐个核对采集宇宙（自选股 ∪ Agent 生效
+   标的）/指数/ETF/A50 是否有对应日 K（与采集集同源，符号清单直接复用各采集器
+   的单一真相源）；
 2. 缺失则重跑对应采集任务（``symbols`` 收窄到缺失标的，重跑即自愈）并复验；
-   自选股按 A 股/港股分派到 ``watchlist-kline-daily`` / ``hk-kline``（港股当日
+   采集宇宙按 A 股/港股分派到 ``watchlist-kline-daily`` / ``hk-kline``（港股当日
    bar 发布滞后，早于就绪时刻记预期迟到，末档严格校验）；
 3. 数据本已齐为 SKIPPED（良性），重跑后仍缺失为 PARTIAL 并在 errors 中列明
    仍缺的代码（如停牌股会持续 PARTIAL，属于正确的可见信号）。
@@ -23,8 +24,9 @@ from app.core.database import AsyncSessionLocal
 from app.repositories.market.kline_repository import has_daily_bar
 from collector.core.base import BaseCollector, CollectResult, CollectStatus
 from collector.core.calendar import latest_trading_day
+from collector.spiders.kline_universe import fetch_kline_universe_codes
 from collector.spiders.sina_etf_kline import SinaEtfKlineCollector
-from collector.spiders.sina_kline import SinaKlineCollector, _fetch_watchlist_codes
+from collector.spiders.sina_kline import SinaKlineCollector
 
 A50_CODE = "CN00Y"
 # 当日 bar 收盘后存在发布滞后，17:00 前不校验「期望日=今天」的缺口
@@ -71,11 +73,13 @@ class KlineFreshnessCollector(BaseCollector):
                 message="当日 bar 可能尚未发布（期望日为今天且当前时间早于 17:00）",
             )
 
-        watchlist = await self._watchlist_codes()
-        # 自选股含港股（5 位码）：港股日 K 由 hk-kline 采集，新浪 A 股 K 线采集器
+        universe = await self._universe_codes()
+        # 采集宇宙含港股（5 位码）：港股日 K 由 hk-kline 采集，新浪 A 股 K 线采集器
         # 会直接跳过非 A 股代码，混入 watchlist-kline-daily 会永远补不上
-        a_share_codes = [code for code in watchlist if SinaKlineCollector._is_a_share(code)]
-        hk_codes = [code for code in watchlist if not SinaKlineCollector._is_a_share(code)]
+        a_share_codes = [
+            code for code in universe if SinaKlineCollector._is_a_share(code)
+        ]
+        hk_codes = [code for code in universe if not SinaKlineCollector._is_a_share(code)]
         groups: list[tuple[str, tuple[str, ...]]] = [
             ("watchlist-kline-daily", tuple(a_share_codes)),
             ("hk-kline", tuple(hk_codes)),
@@ -148,8 +152,8 @@ class KlineFreshnessCollector(BaseCollector):
         return self._result(status, trade_date, errors, metadata, started_at)
 
     @staticmethod
-    async def _watchlist_codes() -> list[str]:
-        return await _fetch_watchlist_codes()
+    async def _universe_codes() -> list[str]:
+        return await fetch_kline_universe_codes()
 
     @staticmethod
     async def _rerun(task_name: str, symbols: list[str]) -> None:

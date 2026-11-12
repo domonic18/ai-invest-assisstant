@@ -10,6 +10,7 @@ from app.models.watchlist import UserWatchlist
 from collector.core.base import get_engine
 from collector.core.parsing import clean_stock_code, to_float
 from collector.spiders.kline_base import BaseKlineCollector
+from collector.spiders.kline_universe import fetch_kline_universe_codes
 
 logger = structlog.get_logger(__name__)
 
@@ -36,14 +37,14 @@ class SinaKlineCollector(BaseKlineCollector):
     ) -> list[dict[str, Any]]:
         import akshare as ak  # type: ignore[import-untyped]
 
-        symbols = symbols or await _fetch_watchlist_codes()
+        symbols = symbols or await fetch_kline_universe_codes()
         raw: list[dict[str, Any]] = []
 
         for symbol in symbols:
             if not self._is_a_share(symbol):
-                # 自选股可含港股等非 A 股；新浪 A 股接口对错配代码会返回空表
+                # 采集宇宙可含港股等非 A 股；新浪 A 股接口对错配代码会返回空表
                 # 或缺 date 列的残表（KeyError），且 hk-kline 任务已全量覆盖港股
-                logger.warning("watchlist_kline_skipped_non_a_share", symbol=symbol)
+                logger.warning("kline_universe_skipped_non_a_share", symbol=symbol)
                 continue
             sina_symbol = self._to_sina_symbol(symbol)
             if self.period == "minute":
