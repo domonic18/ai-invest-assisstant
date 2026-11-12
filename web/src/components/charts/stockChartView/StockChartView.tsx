@@ -1,11 +1,12 @@
 import { SyncOutlined } from '@ant-design/icons'
 import ReactECharts from '@/components/charts/ReactECharts'
 import { Button, Spin } from 'antd'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useState } from 'react'
 
 import { IntradayChart } from '@/components/charts/IntradayChart'
 import { DrawingLayerHost } from '@/components/charts/drawing/DrawingLayerHost'
 import { useDrawingStore } from '@/stores/drawing'
+import { resolveZoomWindow, useKlineViewLayoutStore } from '@/stores/klineViewLayout'
 import { useKlineKeyboardNav } from '@/components/charts/useKlineKeyboardNav'
 import { useStockIntraday, useStockKline } from '@/hooks/useStocks'
 import { useMaConfigs } from '@/stores/settings'
@@ -36,6 +37,8 @@ export interface StockChartViewIndicators {
 
 export interface StockChartViewProps {
   code: string
+  /** 视图槽位标识（daily/weekly）：跨股票继承周期与缩放窗口的会话 store key */
+  viewId: string
   defaultPeriod?: string
   defaultIndicators?: Partial<StockChartViewIndicators>
   onPeriodChange?: (period: string) => void
@@ -62,6 +65,7 @@ function adaptToIndexIntraday(stockIntraday: {
 
 export function StockChartView({
   code,
+  viewId,
   defaultPeriod = 'daily',
   defaultIndicators = {},
   onPeriodChange,
@@ -78,6 +82,11 @@ export function StockChartView({
     kdj: false,
     ...defaultIndicators,
   })
+
+  // 周期跟随 prop（父级会话 store 跨股票继承的值），组件复用不重挂时同步内部状态
+  useEffect(() => {
+    setPeriod(defaultPeriod)
+  }, [defaultPeriod])
 
   const handlePeriodChange = (value: string) => {
     setPeriod(value)
@@ -146,9 +155,30 @@ export function StockChartView({
   }, [chartData])
 
   const { resetZoom, handleDataZoom } = useDataZoomYAxisRescale(chartRef, chartData, {
-    onWindowChange: (_startIdx, endIdx) =>
-      setVisibleEndIdx((prev) => (prev === endIdx ? prev : endIdx)),
+    onWindowChange: (startIdx, endIdx) => {
+      setVisibleEndIdx((prev) => (prev === endIdx ? prev : endIdx))
+      // 缩放窗口写入会话 store（span + 距最新 bar 偏移），切股后按新数据长度恢复
+      const len = chartData?.bars.length ?? 0
+      if (len > 0 && endIdx >= startIdx && startIdx >= 0) {
+        useKlineViewLayoutStore.getState().setWindow(viewId, {
+          span: endIdx - startIdx + 1,
+          endOffset: Math.max(0, len - 1 - endIdx),
+        })
+      }
+    },
   })
+
+  // 跨股票/周期切换继承缩放窗口：新数据渲染后按记忆的 span/endOffset（锚定最新 bar）
+  // 恢复；store 无记录（本会话未调整过）则保持默认窗口。layout 阶段派发避免默认窗口闪帧
+  useLayoutEffect(() => {
+    if (isIntraday || !chartData || chartData.bars.length === 0) return
+    const saved = useKlineViewLayoutStore.getState().windows[viewId]
+    if (!saved) return
+    const chart = chartRef.current?.getEchartsInstance()
+    if (!chart) return
+    const { start, end } = resolveZoomWindow(saved, chartData.bars.length)
+    chart.dispatchAction({ type: 'dataZoom', startValue: start, endValue: end })
+  }, [chartData, viewId, isIntraday, chartRef])
 
   const enabledSubKeys = useMemo(
     () =>

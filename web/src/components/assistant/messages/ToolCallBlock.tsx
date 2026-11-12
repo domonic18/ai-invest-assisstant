@@ -2,6 +2,7 @@ import { Button } from 'antd'
 import { LoadingOutlined, SearchOutlined, ToolOutlined } from '@ant-design/icons'
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useAuiState } from '@assistant-ui/react'
 
 import { useAssistantStore } from '@/stores/assistant'
 
@@ -19,7 +20,12 @@ interface ToolCallBlockProps {
 export function ToolCallBlock({ toolName, args, result }: ToolCallBlockProps) {
   const [open, setOpen] = useState(false)
   const navigate = useNavigate()
-  const isRunning = result == null
+  const threadRunning = useAuiState((s) => s.thread.isRunning)
+  // result==null 只说明「还没等到回执」，必须叠加线程运行态才可判定为执行中；
+  // 线程已静止（历史加载/流中断/错误终态）仍无回执 = 该调用未完成（已中断），
+  // 不能渲染成永挂的「运行中」（2026-11-11「执行中一夜」事故）
+  const isRunning = result == null && threadRunning
+  const interrupted = result == null && !threadRunning
   // 工具结果携带已注册的页面回写事件（__event__）时渲染查看按钮：
   // 重设 pageResult 并按注册表 path 导航到结果页（无论当前在哪个页面），
   // 目标页由 usePageAssistantResult 消费事件完成刷新与提示，随后收起侧边栏露出页面内容
@@ -45,6 +51,8 @@ export function ToolCallBlock({ toolName, args, result }: ToolCallBlockProps) {
               <LoadingOutlined className="animate-spin" />
               运行中…
             </>
+          ) : interrupted ? (
+            <span className="text-amber-500/90">已中断 · 结果未知</span>
           ) : (
             '已完成'
           )}
@@ -68,7 +76,7 @@ export function ToolCallBlock({ toolName, args, result }: ToolCallBlockProps) {
           </Button>
         </div>
       )}
-      {!isRunning && toolName === 'search_knowledge_base' && <KbMediaChips result={result} />}
+      {result != null && toolName === 'search_knowledge_base' && <KbMediaChips result={result} />}
       {open && (
         <div className="space-y-2 border-t border-sky-900/40 px-3 py-2 text-xs text-gray-300">
           <div>
@@ -77,7 +85,7 @@ export function ToolCallBlock({ toolName, args, result }: ToolCallBlockProps) {
               {JSON.stringify(args, null, 2)}
             </pre>
           </div>
-          {!isRunning && (
+          {result != null && (
             <div>
               <span className="text-gray-500">结果：</span>
               <pre className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap rounded bg-black/30 p-2">

@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { StockChartView } from '@/components/charts/stockChartView'
 import { usePaperTradeTradeMarkers } from '@/hooks/usePaperTrade'
 import { useIsNarrowScreen } from '@/hooks/useIsNarrowScreen'
+import { useKlineViewLayoutStore } from '@/stores/klineViewLayout'
 
 import {
   buildViews,
@@ -24,14 +25,43 @@ function normalizeViews(parsed: unknown): ChartViewConfig[] | null {
   }))
 }
 
+/**
+ * 视图清单与布局对齐：单图只留 daily，双图补齐 weekly；
+ * 周期优先取会话 store（切股继承上次调整），store 未记录时回退到各股持久化值。
+ */
+function reconcileViews(
+  views: ChartViewConfig[],
+  dual: boolean,
+  layoutPeriods: Record<string, string>,
+): ChartViewConfig[] {
+  let next = views.map((v) =>
+    layoutPeriods[v.id] && layoutPeriods[v.id] !== v.period
+      ? { ...v, period: layoutPeriods[v.id] }
+      : v,
+  )
+  if (!dual) return next.filter((v) => v.id === 'daily')
+  if (next.length === 1) {
+    const weekly = buildViews(true).find((v) => v.id === 'weekly')
+    if (weekly) {
+      const period = layoutPeriods[weekly.id] ?? weekly.period
+      next = [...next, { ...weekly, period }]
+    }
+  }
+  return next
+}
+
 interface StockChartAreaProps {
   stockCode: string
 }
 
 export function StockChartArea({ stockCode }: StockChartAreaProps) {
-  // 默认单图（K 线最大化）；双图切换仅会话内生效，不再持久化（持久化会把用户锁在双图）
+  // 单/双图与各视图周期是跨股票的会话级布局（切股继承），存 klineViewLayout store；
+  // 双图不落盘（持久化会把用户锁在双图），指标等偏好仍按股持久化
   const [views, setViews] = useState<ChartViewConfig[]>(() => buildViews(false))
-  const [dual, setDual] = useState(false)
+  const dual = useKlineViewLayoutStore((s) => s.dual)
+  const setDual = useKlineViewLayoutStore((s) => s.setDual)
+  const layoutPeriods = useKlineViewLayoutStore((s) => s.periods)
+  const setLayoutPeriod = useKlineViewLayoutStore((s) => s.setPeriod)
   const [viewsLoaded, setViewsLoaded] = useState(false)
 
   // 模拟盘成交回报 → 图表 B/S/T 标记（未登录/无成交为空数组，不影响图表）
@@ -52,14 +82,14 @@ export function StockChartArea({ stockCode }: StockChartAreaProps) {
 
   useEffect(() => {
     if (!stockCode) return
+    // 切股只换数据源：布局（dual）与周期从会话 store 继承，不再重置回单图
+    const layout = useKlineViewLayoutStore.getState()
     try {
       const rawViews = localStorage.getItem(storageKey)
       const parsed = rawViews ? normalizeViews(JSON.parse(rawViews)) : null
-      setDual(false)
-      setViews(parsed ?? buildViews(false))
+      setViews(reconcileViews(parsed ?? buildViews(false), layout.dual, layout.periods))
     } catch {
-      setDual(false)
-      setViews(buildViews(false))
+      setViews(reconcileViews(buildViews(false), layout.dual, layout.periods))
     }
     setViewsLoaded(true)
   }, [storageKey, stockCode])
@@ -75,18 +105,19 @@ export function StockChartArea({ stockCode }: StockChartAreaProps) {
 
   const handleDualChange = (next: boolean) => {
     setDual(next)
-    setViews((prev) => {
-      if (next) {
-        if (prev.length === 2) return prev
-        const weekly = buildViews(true).find((v) => v.id === 'weekly')
-        return weekly ? [...prev, { ...weekly }] : prev
-      }
-      return prev.filter((v) => v.id === 'daily')
-    })
+    setViews((prev) =>
+      reconcileViews(prev, next, useKlineViewLayoutStore.getState().periods),
+    )
   }
 
   const updateView = (id: string, patch: Partial<ChartViewConfig>) => {
     setViews((prev) => prev.map((v) => (v.id === id ? { ...v, ...patch } : v)))
+  }
+
+  const handlePeriodChange = (viewId: string, period: string) => {
+    // 周期写入会话 store（切股继承）+ per-stock 持久化（新会话回退值）
+    setLayoutPeriod(viewId, period)
+    updateView(viewId, { period })
   }
 
   const chartContainerRef = useRef<HTMLDivElement>(null)
@@ -139,10 +170,11 @@ export function StockChartArea({ stockCode }: StockChartAreaProps) {
       {visibleViews.map((view, i) => (
         <StockChartView
           key={view.id}
+          viewId={view.id}
           code={stockCode}
-          defaultPeriod={view.period}
+          defaultPeriod={layoutPeriods[view.id] ?? view.period}
           defaultIndicators={view.indicators}
-          onPeriodChange={(period) => updateView(view.id, { period })}
+          onPeriodChange={(period) => handlePeriodChange(view.id, period)}
           onIndicatorsChange={(indicators) => updateView(view.id, { indicators })}
           height={viewHeights[i] ?? MIN_CHART_HEIGHT}
           layoutToggle={i === 0 ? { value: effectiveDual, onChange: handleDualChange } : undefined}
