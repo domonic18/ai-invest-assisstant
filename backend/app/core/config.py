@@ -120,6 +120,10 @@ class Settings(BaseSettings):
     assistant_run_max_steps: int = 500
     assistant_run_max_seconds: float = 2700.0
 
+    # 助手 SSE 心跳间隔（秒）：工具执行期间无事件时定期发 `: ping` 注释帧，
+    # 维持代理/LB 活性并为客户端空闲看门狗提供字节级心跳（半开连接可检出）
+    assistant_sse_heartbeat_seconds: float = 15.0
+
     # 采集 worker 内第三方 HTTP 库（akshare 等）未显式传 timeout 时的兜底值。
     # 通过 patch requests.Session.request 注入；2026-09-23 事故中 akshare 的
     # requests 调用因无超时在 TLS 握手处永久黑洞。

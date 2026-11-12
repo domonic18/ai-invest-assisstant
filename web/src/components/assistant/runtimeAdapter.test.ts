@@ -106,27 +106,27 @@ describe('runtimeAdapter 事件契约', () => {
   })
 })
 
-describe('runtimeAdapter stream 失败可见性', () => {
-  const collect = async (
-    client: Client,
-    abortSignal?: AbortSignal,
-  ): Promise<Array<{ event: string; data: unknown }>> => {
-    const adapter = createAssistantRuntimeAdapter(() => client)
-    const chunks: Array<{ event: string; data: unknown }> = []
-    const config = {
-      initialize: async () => ({ externalId: 't1', remoteId: 't1' }),
-      abortSignal,
-    }
-    const iterator = await adapter.stream(
-      [{ type: 'human', content: '继续' } as LangChainMessage],
-      config as never,
-    )
-    for await (const chunk of iterator) {
-      chunks.push(chunk as { event: string; data: unknown })
-    }
-    return chunks
+const collect = async (
+  client: Client,
+  abortSignal?: AbortSignal,
+): Promise<Array<{ event: string; data: unknown }>> => {
+  const adapter = createAssistantRuntimeAdapter(() => client)
+  const chunks: Array<{ event: string; data: unknown }> = []
+  const config = {
+    initialize: async () => ({ externalId: 't1', remoteId: 't1' }),
+    abortSignal,
   }
+  const iterator = await adapter.stream(
+    [{ type: 'human', content: '继续' } as LangChainMessage],
+    config as never,
+  )
+  for await (const chunk of iterator) {
+    chunks.push(chunk as { event: string; data: unknown })
+  }
+  return chunks
+}
 
+describe('runtimeAdapter stream 失败可见性', () => {
   it('流前错误（422/网络断）合成 AI 提示消息，不再静默假死', async () => {
     const failClient = {
       runs: {
@@ -154,5 +154,133 @@ describe('runtimeAdapter stream 失败可见性', () => {
     } as unknown as Client
 
     await expect(collect(failClient, controller.signal)).rejects.toThrow('Aborted')
+  })
+})
+
+describe('runtimeAdapter 流中断对账恢复', () => {
+  /** 流出首帧后抛半开超时（模拟 SDK StreamIdleTimeoutError）的客户端 */
+  const disconnectClient = (
+    states: Array<Record<string, unknown>>,
+    fallback: Record<string, unknown> = { active: false, values: {} },
+  ) => ({
+    runs: {
+      stream: vi.fn(async () => {
+        async function* gen() {
+          yield { event: 'metadata', data: { run_id: 'r1', thread_id: 't1' } }
+          throw new Error(
+            'No SSE bytes received for 60000ms; assuming the connection is half-open and reconnecting.',
+          )
+        }
+        return gen()
+      }),
+    },
+    threads: {
+      getState: vi.fn(async () => (states.length > 0 ? states.shift()! : fallback)),
+    },
+  }) as unknown as Client
+
+  it('run 已结束：updates 帧结算服务端终态消息并重派页面事件', async () => {
+    useAssistantStore.setState({ pageResult: null })
+    const client = disconnectClient([
+      {
+        active: false,
+        values: {
+          messages: [
+            { type: 'human', id: 'h1', content: '分析' },
+            { type: 'ai', id: 'a1', content: '结论', tool_calls: [] },
+            {
+              type: 'tool',
+              id: 't1',
+              tool_call_id: 'c1',
+              content: JSON.stringify({
+                __event__: {
+                  type: 'kline_drawing.complete',
+                  target_type: 'stock',
+                  target_code: '600519',
+                  period: 'daily',
+                  count: 3,
+                },
+              }),
+            },
+          ],
+        },
+      },
+    ])
+
+    const chunks = await collect(client, new AbortController().signal)
+
+    const settle = chunks.find((c) => c.event === 'updates')
+    expect(settle).toBeDefined()
+    const messages = (settle?.data as { recovered: { messages: unknown[] } }).recovered
+      .messages
+    expect(messages).toHaveLength(3)
+    // 断连期间丢失的页面回写事件经分派器幂等重派：分派发生在 runtime 层
+    // （onUpdates 回调），直连生成器的测试须手动模拟该层
+    const { eventHandlers } = createAssistantRuntimeAdapter()
+    eventHandlers.onUpdates(settle?.data as never)
+    expect(useAssistantStore.getState().pageResult?.type).toBe('kline_drawing.complete')
+    // 不再合成「请求发送失败」（那是流前错误的语义）
+    expect(chunks.some((c) => c.event === 'error')).toBe(false)
+  })
+
+  it('run 仍活跃：轮询等待至结束后结算', async () => {
+    vi.useFakeTimers()
+    try {
+      const client = disconnectClient([
+        { active: true, values: {} },
+        { active: false, values: { messages: [{ type: 'ai', id: 'a1', content: 'done' }] } },
+      ])
+      const promise = collect(client, new AbortController().signal)
+      await vi.advanceTimersByTimeAsync(3_100)
+      const chunks = await promise
+
+      expect(client.threads.getState).toHaveBeenCalledTimes(2)
+      const settle = chunks.find((c) => c.event === 'updates')
+      expect(settle).toBeDefined()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('超时仍活跃：合成后台继续执行提示，不假装完成', async () => {
+    vi.useFakeTimers()
+    try {
+      // fallback 恒活跃：轮询永等不到终态，只能靠 deadline 收口
+      const client = disconnectClient([{ active: true, values: {} }], { active: true, values: {} })
+      const promise = collect(client, new AbortController().signal)
+      await vi.advanceTimersByTimeAsync(5 * 60_000 + 3_000)
+      const chunks = await promise
+
+      const notice = chunks.find((c) => c.event === 'messages')
+      expect(notice).toBeDefined()
+      const [message] = (
+        notice?.data as Array<{ type: string; content: string }>
+      )
+      expect(message.content).toContain('后台执行')
+      expect(chunks.some((c) => c.event === 'updates')).toBe(false)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('状态不可达（网络仍断）：提示无法确认，不抛错', async () => {
+    const client = {
+      runs: {
+        stream: vi.fn(async () => {
+          async function* gen() {
+            yield { event: 'metadata', data: {} }
+            throw new Error('network gone')
+          }
+          return gen()
+        }),
+      },
+      threads: { getState: vi.fn().mockRejectedValue(new Error('fetch failed')) },
+    } as unknown as Client
+
+    const chunks = await collect(client, new AbortController().signal)
+    const notice = chunks.find((c) => c.event === 'messages')
+    expect(notice).toBeDefined()
+    const [message] = notice?.data as Array<{ content: string }>
+    expect(message.content).toContain('无法确认')
   })
 })

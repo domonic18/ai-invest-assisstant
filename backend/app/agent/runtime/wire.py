@@ -10,11 +10,72 @@
 import ast
 import asyncio
 import json
+from collections.abc import AsyncGenerator, AsyncIterator
 from datetime import date, datetime
-from typing import Any
+from typing import Any, TypeVar, cast
 
 from langchain_core.messages import BaseMessage, ToolMessage
 from langgraph.types import Interrupt
+
+T = TypeVar("T")
+
+# SSE 注释帧（keep-alive）：对代理/LB 维持连接活性；对 langgraph-sdk 的空闲
+# 看门狗提供字节级心跳，半开连接可在看门狗窗口内被客户端检出并触发对账
+SSE_HEARTBEAT = ": ping\n\n"
+
+
+class Heartbeat:
+    """心跳 tick 标记（``merge_heartbeats`` 在源静默超时时产出）。"""
+
+    __slots__ = ()
+
+
+HEARTBEAT = Heartbeat()
+
+
+async def merge_heartbeats(
+    source: AsyncIterator[T], interval: float
+) -> AsyncGenerator[T | Heartbeat, None]:
+    """把异步源与心跳 tick 合流：源超过 ``interval`` 秒无产出时产出一个
+    ``HEARTBEAT`` 标记，直到源耗尽或异常（异常原样上抛给消费方）。
+
+    助手运行的工具执行可能数分钟无事件，期间连接必须有字节流动，
+    否则既过不了代理空闲超时，客户端也无从区分「慢」与「死」。
+
+    注意：消费方提前 break 时 async-for 不会关闭本生成器（finally 不执行，
+    pump 任务泄漏且与源的 ``aclose`` 可能并发），须显式 ``await aclose()``。
+    自然耗尽（StopAsyncIteration）则 finally 自行执行。
+    """
+    queue: asyncio.Queue[T | Heartbeat | BaseException | object] = asyncio.Queue()
+    done = object()
+
+    async def pump() -> None:
+        try:
+            async for item in source:
+                await queue.put(item)
+            await queue.put(done)
+        except BaseException as exc:  # noqa: BLE001 - 异常经队列转交消费方原样上抛
+            await queue.put(exc)
+
+    pump_task = asyncio.create_task(pump())
+    try:
+        while True:
+            try:
+                item = await asyncio.wait_for(queue.get(), timeout=interval)
+            except asyncio.TimeoutError:
+                yield HEARTBEAT
+                continue
+            if item is done:
+                break
+            if isinstance(item, BaseException):
+                raise item
+            yield cast("T | Heartbeat", item)
+    finally:
+        pump_task.cancel()
+        try:
+            await pump_task
+        except asyncio.CancelledError:
+            pass
 
 
 def serialize_message(message: BaseMessage) -> dict[str, Any]:
@@ -136,6 +197,10 @@ class RunRegistry:
             return False
         entry[1].cancel()
         return True
+
+    def has_active_run(self, thread_id: str) -> bool:
+        """线程是否有正在执行的 run（前端断连对账依据：active=继续等，inactive=拉终态）。"""
+        return any(tid == thread_id for tid, _ in self._runs.values())
 
 
 run_registry = RunRegistry()

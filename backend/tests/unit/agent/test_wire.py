@@ -1,14 +1,17 @@
 """Agent Protocol wire 序列化单测。"""
 
 import asyncio
+import typing
 
 import pytest
 from langchain_core.messages import AIMessageChunk, HumanMessage, ToolMessage
 from langgraph.types import Interrupt
 
 from app.agent.runtime.wire import (
+    HEARTBEAT,
     RunRegistry,
     jsonable,
+    merge_heartbeats,
     namespace_label,
     serialize_message,
     sse_event,
@@ -138,3 +141,75 @@ class TestRunRegistry:
 
         registry.unregister("r1")
         assert registry.cancel("t1", "r1") is False
+
+    @pytest.mark.asyncio
+    async def test_has_active_run_scoped_by_thread(self) -> None:
+        registry = RunRegistry()
+
+        async def sleeper() -> None:
+            await asyncio.sleep(30)
+
+        task = asyncio.create_task(sleeper())
+        registry.register("t1", "r1", task)
+        assert registry.has_active_run("t1") is True
+        assert registry.has_active_run("t2") is False
+
+        registry.unregister("r1")
+        assert registry.has_active_run("t1") is False
+        task.cancel()
+
+
+@pytest.mark.unit
+class TestMergeHeartbeats:
+    @staticmethod
+    async def _source(items: list[str], delay: float) -> typing.AsyncIterator[str]:
+        for item in items:
+            await asyncio.sleep(delay)
+            yield item
+
+    @pytest.mark.asyncio
+    async def test_idle_source_yields_heartbeats(self) -> None:
+        # 源静默超过 interval 时插入心跳 tick；事件到达顺序保持
+        out: list[object] = []
+        async for item in merge_heartbeats(self._source(["a"], delay=0.25), 0.05):
+            out.append(item)
+        assert out[0] is HEARTBEAT
+        assert out[-1] == "a"
+        assert out.count(HEARTBEAT) >= 2
+
+    @pytest.mark.asyncio
+    async def test_busy_source_no_heartbeat(self) -> None:
+        out = [item async for item in merge_heartbeats(self._source(["a", "b", "c"], delay=0.0), 0.1)]
+        assert out == ["a", "b", "c"]
+
+    @pytest.mark.asyncio
+    async def test_source_exception_propagates(self) -> None:
+        async def failing() -> typing.AsyncIterator[str]:
+            yield "a"
+            raise RuntimeError("boom")
+
+        with pytest.raises(RuntimeError, match="boom"):
+            async for _ in merge_heartbeats(failing(), 0.05):
+                pass
+
+    @pytest.mark.asyncio
+    async def test_consumer_break_requires_explicit_aclose(self) -> None:
+        # break 不关闭合并器（finally 不执行、pump 存活）；显式 aclose 后 pump 收口。
+        # 与 runs.py 预算耗尽路径的用法一致
+        pump_alive = asyncio.Event()
+
+        async def source() -> typing.AsyncIterator[str]:
+            pump_alive.set()
+            try:
+                while True:
+                    await asyncio.sleep(10)
+                    yield "never"
+            finally:
+                pump_alive.clear()
+
+        merger = merge_heartbeats(source(), 0.05)
+        async for _ in merger:
+            break
+        assert pump_alive.is_set()  # finally 尚未执行：调用方负责 aclose
+        await merger.aclose()
+        assert not pump_alive.is_set()

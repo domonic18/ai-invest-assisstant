@@ -297,6 +297,7 @@ class TestRunStream:
         class _TinyTimeBudgetSettings:
             assistant_run_max_steps = 500
             assistant_run_max_seconds = 0.0
+            assistant_sse_heartbeat_seconds = 15.0
 
         async def _fake_astream(stream_input, config, **kwargs):
             captured["config"] = config
