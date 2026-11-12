@@ -69,7 +69,9 @@ async def get_thread_state(
     session: Annotated[AsyncSession, Depends(get_db)],
     user: Annotated[User, Depends(get_current_user)],
 ) -> ThreadStateResponse:
-    """线程状态快照：values.messages（历史）+ tasks[].interrupts（未完成 HITL）。"""
+    """线程状态快照：values.messages（历史）+ tasks[].interrupts（未完成 HITL）
+    + active（是否有正在执行的 run，断连对账依据）。
+    """
     thread = await _require_thread(session, user, thread_id)
     agent = await _resolve_agent(session, user, thread)
     snapshot = await agent.aget_state({"configurable": {"thread_id": thread_id}})
@@ -86,6 +88,7 @@ async def get_thread_state(
         next=list(snapshot.next or []),
         tasks=tasks,
         metadata=wire.jsonable(snapshot.metadata or {}),
+        active=wire.run_registry.has_active_run(thread_id),
     )
 
 
@@ -144,8 +147,12 @@ async def stream_run(
     session: Annotated[AsyncSession, Depends(get_db)],
     user: Annotated[User, Depends(get_current_user)],
 ) -> StreamingResponse:
-    """SSE 流式运行：messages/updates/custom 三通道；input（新输入）或
-    command（HITL resume）二选一。客户端断开即取消（on_disconnect=cancel）。
+    """SSE 流式运行：messages/updates/custom 三通道 + 心跳注释帧；input（新输入）或
+    command（HITL resume）二选一。
+
+    断连语义：服务端检测到断开（uvicorn 任务取消）即取消运行，checkpoint 保留
+    已完成进度，用户可发「继续」续跑；半开连接（TCP 已死但双方未察觉）检测可能
+    迟滞，由前端空闲看门狗（基于本端心跳）检出后经 state 轮询对账恢复终态。
     """
     thread = await _require_thread(session, user, thread_id)
 
@@ -268,7 +275,22 @@ async def stream_run(
                 )
                 deadline = time.monotonic() + settings.assistant_run_max_seconds
                 time_budget_exhausted = False
-                async for namespaces, mode, payload in astream:
+                # 心跳合流：工具执行期间源静默超时产出 HEARTBEAT，写出 `: ping`
+                # 注释帧维持链路活性；墙钟预算在心跳 tick 上同样推进。
+                # 间隔钳制下限防配置错误退化为心跳风暴
+                merged = wire.merge_heartbeats(
+                    astream, max(settings.assistant_sse_heartbeat_seconds, 1.0)
+                )
+                async for item in merged:
+                    if isinstance(item, wire.Heartbeat):
+                        if time.monotonic() > deadline:
+                            time_budget_exhausted = True
+                            break
+                        yield wire.SSE_HEARTBEAT
+                        continue
+                    namespaces, mode, payload = cast(
+                        "tuple[tuple[str, ...], str, Any]", item
+                    )
                     # 墙钟预算：与步数上限互补——慢模型步步合法但累计超时同样收尾
                     if time.monotonic() > deadline:
                         time_budget_exhausted = True
@@ -306,6 +328,9 @@ async def stream_run(
                         if namespaces:
                             continue
                         yield wire.sse_event("custom", wire.jsonable(payload))
+                # 提前 break（预算耗尽）不会关闭合并器：显式收口取消 pump，
+                # 避免泄漏任务并与后续 astream.aclose() 并发
+                await merged.aclose()
                 if time_budget_exhausted:
                     # 优雅收尾：关闭生成器即取消 graph 任务，checkpoint 保留
                     # 最后完成的 superstep，用户发「继续」即从该点续跑

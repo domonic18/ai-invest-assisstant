@@ -57,12 +57,18 @@ class RunCancelRequest(BaseModel):
 
 
 class ThreadStateResponse(BaseModel):
-    """GET /threads/{id}/state 响应（assistant-ui load() 消费）。"""
+    """GET /threads/{id}/state 响应（assistant-ui load() 与断连对账消费）。
+
+    ``active``：线程当前是否有正在执行的 run（进程内 run_registry）。
+    checkpoint 的 ``next`` 非空无法区分「执行中」与「被中断后遗留」，
+    断连恢复的轮询以本字段为准。
+    """
 
     values: dict[str, Any] = Field(default_factory=dict)
     next: list[str] = Field(default_factory=list)
     tasks: list[dict[str, Any]] = Field(default_factory=list)
     metadata: dict[str, Any] = Field(default_factory=dict)
+    active: bool = False
 
 
 class SkillSummary(CamelModel):
