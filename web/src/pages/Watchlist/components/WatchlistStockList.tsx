@@ -163,6 +163,18 @@ export function WatchlistStockList({
     },
   })
 
+  const contextMenu = (item: WatchlistItem): MenuProps => ({
+    items: [{ key: 'delete', label: '删除', danger: true }],
+    onClick: ({ key, domEvent }) => {
+      domEvent.preventDefault()
+      if (key !== 'delete') return
+      removeItem.mutate(item.id, {
+        onSuccess: () => message.success('已删除'),
+        onError: (err) => message.error(apiErrorMessage(err, '删除失败')),
+      })
+    },
+  })
+
   const quoteFieldLabel =
     sort && sort.field !== 'name' ? SORT_FIELD_LABELS[sort.field] : SORT_FIELD_LABELS.changePct
 
@@ -220,20 +232,20 @@ export function WatchlistStockList({
             const quote = quotesByCode.get(item.code)
             const selected = !managing && item.code === selectedCode
             return (
-              <div
-                key={item.id}
-                role="option"
-                aria-selected={selected}
-                data-code={item.code}
-                onClick={() => {
-                  if (!managing) onSelect(item.code)
-                }}
-                className={`flex items-center gap-2 px-3 py-2 border-b border-gray-800/60 ${
-                  managing
-                    ? 'cursor-default'
-                    : `cursor-pointer ${selected ? 'bg-[#1c1f26]' : 'hover:bg-[#15181e]'}`
-                }`}
-              >
+              <Dropdown menu={contextMenu(item)} trigger={['contextMenu']} key={item.id}>
+                <div
+                  role="option"
+                  aria-selected={selected}
+                  data-code={item.code}
+                  onClick={() => {
+                    if (!managing) onSelect(item.code)
+                  }}
+                  className={`flex items-center gap-2 px-3 py-2 border-b border-gray-800/60 ${
+                    managing
+                      ? 'cursor-default'
+                      : `cursor-pointer ${selected ? 'bg-[#1c1f26]' : 'hover:bg-[#15181e]'}`
+                  }`}
+                >
                 {managing && (
                   <span className="shrink-0 flex items-center" onClick={(e) => e.stopPropagation()}>
                     <Popconfirm
@@ -285,7 +297,8 @@ export function WatchlistStockList({
                     </Dropdown>
                   </span>
                 )}
-              </div>
+                </div>
+              </Dropdown>
             )
           })
         )}
