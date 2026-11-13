@@ -163,17 +163,40 @@ export function WatchlistStockList({
     },
   })
 
-  const contextMenu = (item: WatchlistItem): MenuProps => ({
-    items: [{ key: 'delete', label: '删除', danger: true }],
-    onClick: ({ key, domEvent }) => {
-      domEvent.preventDefault()
-      if (key !== 'delete') return
-      removeItem.mutate(item.id, {
-        onSuccess: () => message.success('已删除'),
-        onError: (err) => message.error(apiErrorMessage(err, '删除失败')),
+  const contextMenu = (item: WatchlistItem): MenuProps => {
+    const moveTargets = groups.filter((g) => g.id !== item.groupId)
+    const items: MenuProps['items'] = []
+    if (moveTargets.length > 0) {
+      items.push({
+        key: 'move',
+        label: '移动到',
+        children: moveTargets.map((g) => ({ key: `move:${g.id}`, label: g.name })),
       })
-    },
-  })
+    }
+    items.push({ key: 'delete', label: '删除', danger: true })
+
+    return {
+      items,
+      onClick: ({ key, domEvent }) => {
+        domEvent.preventDefault()
+        if (key === 'delete') {
+          removeItem.mutate(item.id, {
+            onSuccess: () => message.success('已删除'),
+            onError: (err) => message.error(apiErrorMessage(err, '删除失败')),
+          })
+          return
+        }
+        if (!key.startsWith('move:')) return
+        moveItem.mutate(
+          { itemId: item.id, groupId: Number(key.slice('move:'.length)) },
+          {
+            onSuccess: () => message.success('已移动'),
+            onError: (err) => message.error(apiErrorMessage(err, '移动失败')),
+          },
+        )
+      },
+    }
+  }
 
   const quoteFieldLabel =
     sort && sort.field !== 'name' ? SORT_FIELD_LABELS[sort.field] : SORT_FIELD_LABELS.changePct
